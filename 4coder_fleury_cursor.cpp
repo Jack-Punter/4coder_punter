@@ -241,6 +241,7 @@ F4_Cursor_RenderEmacsStyle(Application_Links *app, View_ID view_id, b32 is_activ
 					C4_RenderCursorSymbolThingy(app, target_cursor, roundness, 4.f, cursor_color, cursor_type);
                 }
                 
+#if 0                
                 // NOTE(rjf): GLOW IT UP
                 for(int glow = 0; glow < 20; ++glow)
                 {
@@ -260,6 +261,7 @@ F4_Cursor_RenderEmacsStyle(Application_Links *app, View_ID view_id, b32 is_activ
                         break;
                     }
                 }
+#endif
                 
             }
             
@@ -362,7 +364,7 @@ F4_HighlightCursorMarkRange(Application_Links *app, View_ID view_id)
     }
     
     draw_rectangle(app, Rf32(view_rect.x0, lower_bound_y, view_rect.x0 + 4, upper_bound_y), 3.f,
-                   fcolor_resolve(fcolor_change_alpha(fcolor_id(defcolor_comment), 0.5f)));
+                   fcolor_resolve(fcolor_change_alpha(fcolor_id(defcolor_comment), 0.25f)));
     draw_set_clip(app, clip);
 }
 

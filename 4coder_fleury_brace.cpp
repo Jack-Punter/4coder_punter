@@ -86,7 +86,9 @@ F4_Brace_RenderCloseBraceAnnotation(Application_Links *app, Buffer_ID buffer, Te
             }
 #else
             // NOTE(jack): Prevent brace annotations from printing on single line scopes.
-            if (get_line_number_from_pos(app, buffer, range.start) == get_line_number_from_pos(app, buffer, range.end))
+            //if (get_line_number_from_pos(app, buffer, range.start) == get_line_number_from_pos(app, buffer, range.end))
+            // NOTE(jack): Only draw annotations if the scope is more than 5 lines long
+            if ((get_line_number_from_pos(app, buffer, range.end) - get_line_number_from_pos(app, buffer, range.start)) < 5)
             {
                 continue;
             }
@@ -104,7 +106,7 @@ F4_Brace_RenderCloseBraceAnnotation(Application_Links *app, Buffer_ID buffer, Te
             f32 center_offset = (buffer_face_metrics.line_height - annotation_face_metrics.line_height) / 2.0f;
             
             Vec2_f32 close_scope_pos = {
-                close_scope_rect.x0 + buffer_face_metrics.normal_advance,
+                close_scope_rect.x0 + buffer_face_metrics.normal_advance * 2,
                 close_scope_rect.y0 + center_offset
             };
             
