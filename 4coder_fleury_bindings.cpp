@@ -11,7 +11,6 @@ CUSTOM_DOC("Switch the keybindings to mode 0.")
 {
 	GlobalKeybindingMode = KeyBindingMode_0;
 }
-
 CUSTOM_COMMAND_SIG(switch_to_keybinding_1)
 CUSTOM_DOC("Switch the keybindings to mode 1.")
 {
