@@ -1808,15 +1808,15 @@ CUSTOM_DOC("Cut the line that the cursor is on")
     i32 size = (i32)buffer_get_size(app, buffer);
     range.end += 1;
     if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
-    range.end = clamp_top(range.end, size);
+        range.end = clamp_top(range.end, size);
         range.start -= 1;
     }
-        range.first = clamp_bot(0, range.first);
+    range.first = clamp_bot(0, range.first);
     
-        buffer_replace_range(app, buffer, range, string_u8_litexpr(""));
+    buffer_replace_range(app, buffer, range, string_u8_litexpr(""));
     if (clipboard_post_buffer_range(app, 0, buffer, range)) {
-}
     }
+}
 
 CUSTOM_UI_COMMAND_SIG(jp_copy_line)
 CUSTOM_DOC("Copy the line that the cursor is on")
@@ -1824,18 +1824,19 @@ CUSTOM_DOC("Copy the line that the cursor is on")
     View_ID view = get_active_view(app, Access_ReadVisible);
     Buffer_ID buffer = view_get_buffer(app, view, Access_ReadVisible);
     i64 pos = view_get_cursor_pos(app, view);
-    Range_i64 range = get_line_pos_range(app, buffer, line);
     i64 line = get_line_number_from_pos(app, buffer, pos);
-    i32 size = (i32)buffer_get_size(app, buffer);
+    Range_i64 range = get_line_pos_range(app, buffer, line);
     range.end += 1;
+    i32 size = (i32)buffer_get_size(app, buffer);
     range.end = clamp_top(range.end, size);
     if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
-        range.first = clamp_bot(0, range.first);
         range.start -= 1;
+        range.first = clamp_bot(0, range.first);
     }
     
-}
     clipboard_post_buffer_range(app, 0, buffer, range);
+}
+
 //~ NOTE(rjf): Deprecated names:
 CUSTOM_COMMAND_SIG(fleury_write_text_input)
 CUSTOM_DOC("Deprecated name. Please update to f4_write_text_input.")
