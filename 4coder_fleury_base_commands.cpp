@@ -1778,16 +1778,13 @@ CUSTOM_DOC("Insert the required number of spaces to get to a specified column nu
 }
 
 //- @jp-commands
-global bool GlobalIsRecordingMacro;
 CUSTOM_UI_COMMAND_SIG(jp_macro_toggle_recording)
 CUSTOM_DOC("Toggle Recording Keyboard Macro")
 {
-    if (GlobalIsRecordingMacro) {
+    if (global_keyboard_macro_is_recording) {
         keyboard_macro_finish_recording(app);
     } else {
-        GlobalIsRecordingMacro = false;
         keyboard_macro_start_recording(app);
-        GlobalIsRecordingMacro = true;
     }
 }
 
