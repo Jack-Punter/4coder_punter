@@ -1,4 +1,3 @@
-
 //~ @f4_readme Ryan Fleury's 4coder Custom Layer
 //
 // Hello! Thank you for checking out my custom layer. This layer is a collection
@@ -644,17 +643,6 @@ CUSTOM_DOC("Fleury startup event")
         def_audio_init();
     }
     
-    //~ NOTE(rjf): Initialize bindings.
-    {
-        String_Const_u8 bindings_file = string_u8_litexpr("bindings.4coder");
-        F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
-        if(!dynamic_binding_load_from_file(app, &framework_mapping, bindings_file))
-        {
-            F4_SetDefaultBindings(&framework_mapping);
-        }
-        F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
-    }
-    
     //~ NOTE(rjf): Initialize stylish fonts.
     {
         Scratch_Block scratch(app);
@@ -711,7 +699,7 @@ CUSTOM_DOC("Fleury startup event")
             
             Face_Description desc = {0};
             {
-                desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/Inconsolata-Regular.ttf", string_expand(bin_path));
+                desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/JetBrainsMono-Regular.ttf", string_expand(bin_path));
                 desc.parameters.pt_size = normal_code_desc.parameters.pt_size - 1;
                 desc.parameters.bold = 1;
                 desc.parameters.italic = 1;

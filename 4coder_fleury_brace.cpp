@@ -48,6 +48,10 @@ F4_Brace_RenderCloseBraceAnnotation(Application_Links *app, Buffer_ID buffer, Te
         ProfileScope(app, "[F4] Brace Annotation");
         
         Range_i64 visible_range = text_layout_get_visible_range(app, text_layout_id);
+        
+        i64 visible_start_line = get_line_number_from_pos(app, buffer, visible_range.start);
+        i64 visible_end_line = get_line_number_from_pos(app, buffer, visible_range.end - 1);
+        
         Token_Array token_array = get_token_array_from_buffer(app, buffer);
         Face_ID face_id = global_small_code_face;
         
@@ -86,17 +90,31 @@ F4_Brace_RenderCloseBraceAnnotation(Application_Links *app, Buffer_ID buffer, Te
             }
 #else
             // NOTE(jack): Prevent brace annotations from printing on single line scopes.
-            if (get_line_number_from_pos(app, buffer, range.start) == get_line_number_from_pos(app, buffer, range.end))
+            //if (get_line_number_from_pos(app, buffer, range.start) == get_line_number_from_pos(app, buffer, range.end))
+            // NOTE(jack): Only draw annotations if the scope is more than 5 lines long
+            if ((get_line_number_from_pos(app, buffer, range.end) - get_line_number_from_pos(app, buffer, range.start)) < 5)
             {
                 continue;
             }
 #endif
             
-            i64 line = get_line_number_from_pos(app, buffer, range.end);
-            i64 last_char = get_line_end_pos(app, buffer, line)-1;
+            i64 range_start_line = get_line_number_from_pos(app, buffer, range.start);
+            i64 range_end_line = get_line_number_from_pos(app, buffer, range.end);
+            i64 last_char = get_line_end_pos(app, buffer, range_end_line)-1;
             
+            Rect_f32 open_scope_rect = text_layout_character_on_screen(app, text_layout_id, range_start_line);
             Rect_f32 close_scope_rect = text_layout_character_on_screen(app, text_layout_id, last_char);
-            Vec2_f32 close_scope_pos = { close_scope_rect.x0 + 12, close_scope_rect.y0 };
+            
+            // NOTE(jack): Use the face metrics line_heights to vertically align  the annotation
+            Face_ID buffer_face = get_face_id(app, buffer);
+            Face_Metrics buffer_face_metrics = get_face_metrics(app, buffer_face);
+            Face_Metrics annotation_face_metrics = get_face_metrics(app, face_id);
+            f32 center_offset = (buffer_face_metrics.line_height - annotation_face_metrics.line_height) / 2.0f;
+            
+            Vec2_f32 close_scope_pos = {
+                close_scope_rect.x0 + buffer_face_metrics.normal_advance * 2,
+                close_scope_rect.y0 + center_offset
+            };
             
             // NOTE(rjf): Find token set before this scope begins.
             Token *start_token = 0;
@@ -181,10 +199,55 @@ F4_Brace_RenderCloseBraceAnnotation(Application_Links *app, Buffer_ID buffer, Te
                 }
                 
                 draw_string(app, face_id, start_line, close_scope_pos, color);
+                
+                // TODO(jack): Should I consolidate the brace annotations and lines into a single function?
+                // There is a lot of duplicated code to calculate rendering position between brace lines
+                // and vertical scope helpers
+                
+                // NOTE(jack): If the visible range is completley within the range draw a vertical scope helper.
+                if (range_end_line > visible_end_line && range_start_line <= visible_start_line) {
+                    View_ID view = get_active_view(app, Access_Visible);
+                    Rect_f32 screen = view_get_screen_rect(app, view);
+                    Face_Metrics face_metrics = get_face_metrics(app, face_id);
+                    
+                    
+                    Buffer_Scroll buffer_scroll = view_get_buffer_scroll(app, view);
+                    float x_offset = 0.25f * face_metrics.line_height - buffer_scroll.position.pixel_shift.x;
+                    
+                    // NOTE(jack): Add the buffer buffer "screen" offset in the view
+                    b32 show_line_number_margins = def_get_config_b32(vars_save_string_lit("show_line_number_margins"));
+                    if(show_line_number_margins)
+                    {
+                        f32 digit_advance = face_metrics.decimal_digit_advance;
+                        Rect_f32_Pair pair = layout_line_number_margin(app, buffer, screen, digit_advance);
+                        
+                        x_offset += pair.b.x0;
+                    }
+                    
+                    f32 text_length = annotation_face_metrics.normal_advance * start_line.size;
+                    
+                    u64 vw_indent = def_get_config_u64(app, vars_save_string_lit("virtual_whitespace_regular_indent"));
+                    
+                    // i == 0 is the deepest nest range in the list.
+                    i32 indent_level = ranges.count - i - 1;
+                    
+                    f32 indent_amount = 0.0f;
+                    if (def_enable_virtual_whitespace) {
+                        indent_amount = buffer_face_metrics.space_advance * vw_indent;
+                    } else {
+                        indent_amount = buffer_face_metrics.space_advance * first_non_whitespace_offset;
+                    }
+                    
+                    Vec2_f32 start_pos = { 
+                        x_offset + indent_amount * indent_level,
+                        (screen.y0 + screen.y1 + text_length) / 2.0f
+                    };
+                    
+                    draw_string_oriented(app, face_id, color, start_line, start_pos, 0, {0.0f, -1.0f});
+                }
             }
         }
     }
-    
 }
 
 //~ NOTE(rjf): Brace lines
@@ -230,23 +293,20 @@ F4_Brace_RenderLines(Application_Links *app, Buffer_ID buffer, View_ID view,
         Scratch_Block scratch(app);
         Range_i64_Array ranges = get_enclosure_ranges(app, scratch, buffer, pos, RangeHighlightKind_CharacterHighlight);
         
-        Rect_f32 line_number_rect = {};
+        Buffer_Scroll buffer_scroll = view_get_buffer_scroll(app, view);
+        float x_offset = 0.5f * metrics.normal_advance - buffer_scroll.position.pixel_shift.x;
+        
         b32 show_line_number_margins = def_get_config_b32(vars_save_string_lit("show_line_number_margins"));
         if(show_line_number_margins)
         {
             Rect_f32 rect = view_get_screen_rect(app, view);
             
-            Face_Metrics face_metrics = get_face_metrics(app, face_id);
-            f32 digit_advance = face_metrics.decimal_digit_advance;
+            f32 digit_advance = metrics.decimal_digit_advance;
             
             Rect_f32_Pair pair = layout_line_number_margin(app, buffer, rect, digit_advance);
-            line_number_rect = pair.min;
-            line_number_rect.x1 += 4;
+            x_offset += pair.b.x0;
         }
         
-        float x_offset = view_get_screen_rect(app, view).x0 + 4 -
-            view_get_buffer_scroll(app, view).position.pixel_shift.x +
-            (line_number_rect.x1 - line_number_rect.x0);
         float x_position = 0.f;
         
         u64 vw_indent = def_get_config_u64(app, vars_save_string_lit("virtual_whitespace_regular_indent"));

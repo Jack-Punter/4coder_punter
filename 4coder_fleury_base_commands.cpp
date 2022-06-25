@@ -675,81 +675,118 @@ F4_Boundary_TokenAndWhitespace(Application_Links *app, Buffer_ID buffer,
     return(result);
 }
 
-// TODO(rjf): Replace with the final one from Jack's layer.
 function i64
-F4_Boundary_CursorTokenOrBlankLine_TEST(Application_Links *app, Buffer_ID buffer, 
-                                        Side side, Scan_Direction direction, i64 pos)
+F4_Boundary_CursorToken(Application_Links *app, Buffer_ID buffer, 
+                        Side side, Scan_Direction direction, i64 pos)
 {
     Scratch_Block scratch(app);
     
-    Range_i64_Array scopes = get_enclosure_ranges(app, scratch, buffer, pos, FindNest_Scope);
-    // NOTE(jack): The outermost scope
-    Range_i64 outer_scope = scopes.ranges[scopes.count - 1];
+    //-
+    // NOTE(jack): Iterate the code index file for the buffer to find the search range for tokens
+    // The search range_bounds should contain the function body, and its parameter list
+    Code_Index_File *file = code_index_get_file(buffer);
+    Range_i64 search_bounds = {};
+    if (file) 
+    {
+        Code_Index_Nest_Ptr_Array file_nests = file->nest_array;
+        Code_Index_Nest *prev_important_nest = 0;
+        
+        for (Code_Index_Nest *nest = file->nest_list.first; 
+             nest != 0; 
+             nest = nest->next)
+        {
+            if (range_contains(Range_i64{nest->open.start, nest->close.end}, pos))
+            {
+                switch (nest->kind)
+                {
+                    case CodeIndexNest_Paren:
+                    {
+                        // NOTE(jack): Iterate to the next scope nest. We occasionally see CodeIndexNest_Preprocessor or 
+                        // CodeIndexNest_Statement types between function parameter lists and the fucntion body
+                        Code_Index_Nest *funciton_body_nest = nest->next;
+                        while(funciton_body_nest && funciton_body_nest ->kind != CodeIndexNest_Scope) {
+                            funciton_body_nest = funciton_body_nest->next;
+                        }
+                        
+                        search_bounds.start = nest->open.start;
+                        search_bounds.end = (funciton_body_nest ?
+                                             funciton_body_nest->close.end : 
+                                             nest->close.end);
+                    } break; 
+                    
+                    case CodeIndexNest_Scope:
+                    {
+                        search_bounds.start = (prev_important_nest ? 
+                                               prev_important_nest->open.start :
+                                               nest->open.start);
+                        search_bounds.end = nest->close.end;
+                    } break;
+                }
+            }
+            
+            // NOTE(jack): Keep track of the most recent Paren scope (parameter list) so that we can use it directly
+            // if the cursor is within a function body.
+            if (nest->kind == CodeIndexNest_Paren) 
+            {
+                prev_important_nest = nest;
+            }
+        }
+    }
     
-    // NOTE(jack): As we are issuing a move command here I will assume that buffer is the active buffer.
+    //-
     View_ID view = get_active_view(app, Access_Always);
     i64 active_cursor_pos = view_get_cursor_pos(app, view);
     Token_Array tokens = get_token_array_from_buffer(app, buffer);
     Token_Iterator_Array active_cursor_it = token_iterator_pos(0, &tokens, active_cursor_pos);
     Token *active_cursor_token = token_it_read(&active_cursor_it);
-    
     String_Const_u8 cursor_string = push_buffer_range(app, scratch, buffer, Ii64(active_cursor_token));
     i64 cursor_offset = pos - active_cursor_token->pos;
     
-    // NOTE(jack): If the cursor token is not an identifier, we will move to empty lines
-    i64 result = get_pos_of_blank_line_grouped(app, buffer, direction, pos);
-    result = view_get_character_legal_pos_from_pos(app, view, result);
-    if (tokens.tokens != 0)
+    //-
+    // NOTE(jack): Loop to find the next cursor token occurance in the search_bounds. 
+    // (only if we are on an identifier and have valid search bounds.
+    i64 result = pos;
+    if (tokens.tokens != 0 &&
+        active_cursor_token->kind == TokenBaseKind_Identifier &&
+        range_contains(search_bounds, pos))
     {
-        // NOTE(jack): if the the cursor token is an identifier, and we are inside of a scope
-        // perform the cursor occurance movement.
-        if (active_cursor_token->kind == TokenBaseKind_Identifier && !(scopes.count == 0))
+        Token_Iterator_Array it = token_iterator_pos(0, &tokens, pos);
+        for (;;)
         {
-            // NOTE(jack): Reset result to prevent token movement to escape to blank line movement
-            // when you are on the first/last token in the outermost scope.
-            result = pos;
-            Token_Iterator_Array it = token_iterator_pos(0, &tokens, pos);
-            
-            for (;;)
+            b32 out_of_file = false;
+            switch (direction)
             {
-                b32 done = false;
-                // NOTE(jack): Incremenet first so we dont move to the same cursor that the cursor is on.
-                switch (direction)
+                case Scan_Forward:
                 {
-                    // NOTE(jack): I am using it.ptr->pos because its easier than reading the token with
-                    // token_it_read
-                    case Scan_Forward:
-                    {
-                        if (!token_it_inc_non_whitespace(&it) || it.ptr->pos >= outer_scope.end) {
-                            done = true;
-                        }
-                    } break;
-                    
-                    case Scan_Backward:
-                    {
-                        if (!token_it_dec_non_whitespace(&it) || it.ptr->pos < outer_scope.start) {
-                            done = true;
-                        }
-                    } break;
-                }
+                    out_of_file = !token_it_inc_non_whitespace(&it);
+                } break;
                 
-                if (!done) 
+                case Scan_Backward:
                 {
-                    Token *token = token_it_read(&it);
+                    out_of_file = !token_it_dec_non_whitespace(&it);
+                } break;
+            }
+            
+            if (out_of_file || !range_contains(search_bounds, token_it_read(&it)->pos))
+            {
+                break;
+            }
+            else
+            {
+                Token *token = token_it_read(&it);
+                // NOTE(jack): Only push the token string and compare if the token is an identifier.
+                if (token->kind == TokenBaseKind_Identifier) 
+                {
                     String_Const_u8 token_string = push_buffer_range(app, scratch, buffer, Ii64(token));
-                    if (string_match(cursor_string, token_string)) {
+                    if (string_match(cursor_string, token_string))
+                    {
                         result = token->pos + cursor_offset;
                         break;
                     }
                 }
-                else 
-                {
-                    break;
-                }
             }
         }
     }
-    
     return result ;
 }
 
@@ -785,14 +822,14 @@ CUSTOM_COMMAND_SIG(f4_move_up_token_occurrence)
 CUSTOM_DOC("Moves the cursor to the previous occurrence of the token that the cursor is over.")
 {
     Scratch_Block scratch(app);
-    current_view_scan_move(app, Scan_Backward, push_boundary_list(scratch, F4_Boundary_CursorTokenOrBlankLine_TEST));
+    current_view_scan_move(app, Scan_Backward, push_boundary_list(scratch, F4_Boundary_CursorToken));
 }
 
 CUSTOM_COMMAND_SIG(f4_move_down_token_occurrence)
 CUSTOM_DOC("Moves the cursor to the next occurrence of the token that the cursor is over.")
 {
     Scratch_Block scratch(app);
-    current_view_scan_move(app, Scan_Forward, push_boundary_list(scratch, F4_Boundary_CursorTokenOrBlankLine_TEST));
+    current_view_scan_move(app, Scan_Forward, push_boundary_list(scratch, F4_Boundary_CursorToken));
 }
 
 CUSTOM_COMMAND_SIG(f4_move_right_token_boundary)
@@ -1694,6 +1731,111 @@ CUSTOM_DOC("Counts the lines of code in the current buffer, breaks it down by se
     }
 }
 
+CUSTOM_COMMAND_SIG(f4_remedy_open_cursor)
+CUSTOM_DOC("Opens the active panel's file in an actively-running RemedyBG instance, and moves to the cursor's line position.")
+{
+    Scratch_Block scratch(app);
+    View_ID view = get_active_view(app, Access_Read);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_Read);
+    String8 buffer_name = push_buffer_file_name(app, scratch, buffer);
+    i64 pos = view_get_cursor_pos(app, view);
+    i64 line = get_line_number_from_pos(app, buffer, pos);
+    String8 hot_directory = push_hot_directory(app, scratch);
+    Child_Process_ID child_id = create_child_process(app, hot_directory, push_stringf(scratch, "remedybg.exe open-file %.*s %i", string_expand(buffer_name), (int)line));
+    (void)child_id;
+}
+
+CUSTOM_COMMAND_SIG(f4_bump_to_column)
+CUSTOM_DOC("Insert the required number of spaces to get to a specified column number.")
+{
+    View_ID view = get_active_view(app, Access_Always);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_Always);
+    Face_ID face_id = get_face_id(app, buffer);
+    Face_Description description = get_face_description(app, face_id);
+    
+    Query_Bar_Group group(app);
+    u8 string_space[256];
+    Query_Bar bar = {};
+    bar.prompt = string_u8_litexpr("Column Number: ");
+    bar.string = SCu8(string_space, (u64)0);
+    bar.string_capacity = sizeof(string_space);
+    if(query_user_number(app, &bar))
+    {
+        i64 column_number = (i64)string_to_integer(bar.string, 10);
+        i64 cursor = view_get_cursor_pos(app, view);
+        i64 cursor_line = get_line_number_from_pos(app, buffer, cursor);
+        i64 cursor_column = cursor - get_line_start_pos(app, buffer, cursor_line) + 1;
+        i64 spaces_to_insert = column_number - cursor_column;
+        History_Group group = history_group_begin(app, buffer);
+        for(i64 i = 0; i < spaces_to_insert; i += 1)
+        {
+            buffer_replace_range(app, buffer, Ii64(cursor, cursor), str8_lit(" "));
+        }
+        view_set_cursor(app, view, seek_pos(cursor+spaces_to_insert));
+        view_set_mark(app, view, seek_pos(cursor+spaces_to_insert));
+        history_group_end(group);
+    }
+}
+
+//- @jp-commands
+global bool GlobalIsRecordingMacro;
+CUSTOM_UI_COMMAND_SIG(jp_macro_toggle_recording)
+CUSTOM_DOC("Toggle Recording Keyboard Macro")
+{
+    if (GlobalIsRecordingMacro) {
+        keyboard_macro_finish_recording(app);
+    } else {
+        GlobalIsRecordingMacro = false;
+        keyboard_macro_start_recording(app);
+        GlobalIsRecordingMacro = true;
+    }
+}
+
+CUSTOM_UI_COMMAND_SIG(jp_insert_deref_access)
+CUSTOM_DOC("Insert -> to access a pointer's data member")
+{
+    write_text(app, string_u8_litexpr("->"));
+}
+CUSTOM_UI_COMMAND_SIG(jp_cut_line)
+CUSTOM_DOC("Cut the line that the cursor is on")
+
+{
+    View_ID view = get_active_view(app, Access_ReadWriteVisible);
+    i64 pos = view_get_cursor_pos(app, view);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_ReadWriteVisible);
+    i64 line = get_line_number_from_pos(app, buffer, pos);
+    Range_i64 range = get_line_pos_range(app, buffer, line);
+    i32 size = (i32)buffer_get_size(app, buffer);
+    range.end += 1;
+    if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
+    range.end = clamp_top(range.end, size);
+        range.start -= 1;
+    }
+        range.first = clamp_bot(0, range.first);
+    
+        buffer_replace_range(app, buffer, range, string_u8_litexpr(""));
+    if (clipboard_post_buffer_range(app, 0, buffer, range)) {
+}
+    }
+
+CUSTOM_UI_COMMAND_SIG(jp_copy_line)
+CUSTOM_DOC("Copy the line that the cursor is on")
+{
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_ReadVisible);
+    i64 pos = view_get_cursor_pos(app, view);
+    Range_i64 range = get_line_pos_range(app, buffer, line);
+    i64 line = get_line_number_from_pos(app, buffer, pos);
+    i32 size = (i32)buffer_get_size(app, buffer);
+    range.end += 1;
+    range.end = clamp_top(range.end, size);
+    if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
+        range.first = clamp_bot(0, range.first);
+        range.start -= 1;
+    }
+    
+}
+    clipboard_post_buffer_range(app, 0, buffer, range);
 //~ NOTE(rjf): Deprecated names:
 CUSTOM_COMMAND_SIG(fleury_write_text_input)
 CUSTOM_DOC("Deprecated name. Please update to f4_write_text_input.")
