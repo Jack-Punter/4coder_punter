@@ -339,12 +339,14 @@ F4_Brace_RenderLines(Application_Links *app, Buffer_ID buffer, View_ID view,
             float y_end = 10000;
             if(range.start >= visible_range.start)
             {
-                y_start = range_start_rect.y0 + metrics.line_height;
+                y_start = range_start_rect.y1;
             }
             if(range.end <= visible_range.end)
             {
                 y_end = range_end_rect.y0;
             }
+            
+            if (y_end <= y_start) { break; }
             
             Rect_f32 line_rect = {0};
             line_rect.x0 = x_position+x_offset;

@@ -142,7 +142,7 @@ keys_file =
     { "query_replace_selection",                       "Q", "Alt" },
     
     // NOTE(rjf): Clipboard
-    { "copy",                                          "C", "Control" },
+    { "jp_copy",                                       "C", "Control" },
     { "paste_and_indent",                              "V", "Control" },
     { "paste_next_and_indent",                         "V", "Control", "Shift" },
     { "cut",                                           "X", "Control" },
@@ -158,7 +158,8 @@ keys_file =
     { "duplicate_line",                                "L", "Control" },
     
     // NOTE(rjf): View
-    { "center_view",                                   "E", "Control" },
+    // { "center_view",                                   "E", "Control" },
+	{ "jp_soft_center_view",                                   "E", "Control" },
     { "left_adjust_view",                              "E", "Control", "Shift" },
     
     // NOTE(rjf): File

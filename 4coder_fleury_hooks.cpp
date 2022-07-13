@@ -845,6 +845,19 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
     F4_PowerMode_Tick(app, frame_info);
     F4_UpdateFlashes(app, frame_info);
     
+    // NOTE(jack): Update the Pos Decay Time to reset to Center Pos None
+    if (JP_CurrentSoftPos != SoftCenterPos_None)
+    {
+        animate_in_n_milliseconds(app, 0);
+        JP_CurrentSoftPosDecayTime -= frame_info.animation_dt;
+        if (JP_CurrentSoftPosDecayTime <= 0.0f) {
+            JP_CurrentSoftPosDecayTime = 0.0f;
+            JP_CurrentSoftPos = SoftCenterPos_None;
+            // NOTE(jack): Force the tick to get recalled immediatley so that decay time is accurate
+        }
+        
+    }
+    
     // NOTE(rjf): Default tick stuff from the 4th dimension:
     default_tick(app, frame_info);
 }

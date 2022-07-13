@@ -425,6 +425,7 @@ typedef int socklen_t;
 #include "4coder_fleury_command_server.h"
 #endif
 #include "4coder_fleury_hooks.h"
+#include "4coder_fleury_base_commands.h"
 
 //~ NOTE(rjf): @f4_src
 #include "4coder_fleury_ubiquitous.cpp"

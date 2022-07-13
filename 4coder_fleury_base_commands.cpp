@@ -1777,7 +1777,7 @@ CUSTOM_DOC("Insert the required number of spaces to get to a specified column nu
     }
 }
 
-//- @jp-commands
+//~ NOTE(jack):  @jp-commands
 CUSTOM_UI_COMMAND_SIG(jp_macro_toggle_recording)
 CUSTOM_DOC("Toggle Recording Keyboard Macro")
 {
@@ -1793,25 +1793,21 @@ CUSTOM_DOC("Insert -> to access a pointer's data member")
 {
     write_text(app, string_u8_litexpr("->"));
 }
+
 CUSTOM_UI_COMMAND_SIG(jp_cut_line)
 CUSTOM_DOC("Cut the line that the cursor is on")
-
 {
     View_ID view = get_active_view(app, Access_ReadWriteVisible);
-    i64 pos = view_get_cursor_pos(app, view);
     Buffer_ID buffer = view_get_buffer(app, view, Access_ReadWriteVisible);
+    i64 pos = view_get_cursor_pos(app, view);
     i64 line = get_line_number_from_pos(app, buffer, pos);
     Range_i64 range = get_line_pos_range(app, buffer, line);
-    i32 size = (i32)buffer_get_size(app, buffer);
-    range.end += 1;
-    if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
-        range.end = clamp_top(range.end, size);
-        range.start -= 1;
-    }
-    range.first = clamp_bot(0, range.first);
     
-    buffer_replace_range(app, buffer, range, string_u8_litexpr(""));
+    i32 size = (i32)buffer_get_size(app, buffer);
+    range.end = clamp_top(range.end + 1, size);
+    
     if (clipboard_post_buffer_range(app, 0, buffer, range)) {
+        buffer_replace_range(app, buffer, range, string_u8_litexpr(""));
     }
 }
 
@@ -1821,17 +1817,170 @@ CUSTOM_DOC("Copy the line that the cursor is on")
     View_ID view = get_active_view(app, Access_ReadVisible);
     Buffer_ID buffer = view_get_buffer(app, view, Access_ReadVisible);
     i64 pos = view_get_cursor_pos(app, view);
-    i64 line = get_line_number_from_pos(app, buffer, pos);
-    Range_i64 range = get_line_pos_range(app, buffer, line);
-    range.end += 1;
+    i64 line_no = get_line_number_from_pos(app, buffer, pos);
+    Range_i64 line_range = get_line_pos_range(app, buffer, line_no);
+    
+    Range_i64 copy_range = line_range;
     i32 size = (i32)buffer_get_size(app, buffer);
-    range.end = clamp_top(range.end, size);
-    if (range_size(range) == 0 || buffer_get_char(app, buffer, range.end - 1) != '\n'){
-        range.start -= 1;
-        range.first = clamp_bot(0, range.first);
+    copy_range.end = clamp_top(copy_range.end + 1, size);
+    
+    Scratch_Block scratch(app);
+    String_Const_u8 line = push_buffer_range(app, scratch, buffer, line_range);
+    
+    // TODO(jack): This code is super annoying because of the behaviour of 
+    // text_layout_character_on_screen for whitespace characters.
+    // maybe I should rewrite F4_RenderRangeHighlight to handle the edge cases?
+    Range_i64 flash_range = {};
+    flash_range.first = line_range.first;
+    flash_range.one_past_last = line_range.end;
+    
+    u64 first_non_whitespace = string_find_first_non_whitespace(line);
+    if (first_non_whitespace != line.size)
+    {
+        flash_range.first += first_non_whitespace;
+    }
+    
+    F4_PushFlash(app, buffer, flash_range, fcolor_resolve(fcolor_id(fleury_color_lego_grab)), 2.0f);
+    clipboard_post_buffer_range(app, 0, buffer, copy_range);
+}
+
+CUSTOM_COMMAND_SIG(jp_copy)
+CUSTOM_DOC("Copy the text in the range from the cursor to the mark onto the clipboard.")
+{
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_ReadVisible);
+    Range_i64 range = get_view_range(app, view);
+    
+    // NOTE(jack): Flash the range being copied
+    {
+        Scratch_Block scratch(app);
+        i64 start_line = get_line_number_from_pos(app, buffer, range.start);
+        i64 end_line = get_line_number_from_pos(app, buffer, range.end);
+        
+        // TODO(jack): Do I want to make F4_RenderRangeHighlight handle multi-line
+        // ranges by default so I dont need to do this logic here? This would also
+        // reduce the strain on the f4_flashes array which limits this code to 64 
+        // lines
+        for (i64 i = start_line; i <= end_line; ++i)
+        {
+            Range_i64 line_range = get_line_pos_range(app, buffer, i);
+            String_Const_u8 line = push_buffer_range(app, scratch, buffer, line_range);
+            Range_i64 flash_range = {};
+            flash_range.first = line_range.first;
+            flash_range.one_past_last = line_range.end;
+            
+            u64 first_non_whitespace = string_find_first_non_whitespace(line);
+            if (first_non_whitespace != line.size)
+            {
+                flash_range.first += first_non_whitespace;
+            }
+            
+            if (i == start_line)
+            {
+                flash_range.start = range.start;
+            }
+            if (i == end_line)
+            {
+                flash_range.end = range.end;
+            }
+            
+            if (flash_range.start < flash_range.end)
+            {
+                F4_PushFlash(app, buffer, flash_range, fcolor_resolve(fcolor_id(fleury_color_lego_grab)), 2.0f);
+            }
+        }
     }
     
     clipboard_post_buffer_range(app, 0, buffer, range);
+}
+
+CUSTOM_COMMAND_SIG(jp_soft_center_view)
+CUSTOM_DOC("Aligns the line the cusor is on with alternating regions of the screen, top, middle, then bottom")
+{
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    Rect_f32 region = view_get_buffer_region(app, view);
+    i64 pos = view_get_cursor_pos(app, view);
+    Buffer_Cursor cursor = view_compute_cursor(app, view, seek_pos(pos));
+    f32 view_height = rect_height(region);
+    Buffer_Scroll scroll = view_get_buffer_scroll(app, view);
+    scroll.target.line_number = cursor.line;
+    
+    if (JP_CurrentSoftPos == SoftCenterPos_None)
+    {
+        scroll.target.pixel_shift.y = -view_height*0.2f;
+        JP_CurrentSoftPos = SoftCenterPos_Top;
+    }
+    else if (JP_CurrentSoftPos == SoftCenterPos_Top)
+    {
+        scroll.target.pixel_shift.y = -view_height*0.5f;
+        JP_CurrentSoftPos= SoftCenterPos_Center;
+    }
+    else if (JP_CurrentSoftPos == SoftCenterPos_Center)
+    {
+        scroll.target.pixel_shift.y = -view_height*0.8f;
+        JP_CurrentSoftPos = SoftCenterPos_Bottom;
+    }
+    else if (JP_CurrentSoftPos == SoftCenterPos_Bottom) 
+    {
+        scroll.target.pixel_shift.y = -view_height*0.2f;
+        JP_CurrentSoftPos= SoftCenterPos_Top;
+    }
+    // NOTE(jack): This is a pretty innacurate decay time (until the global state resets to SoftCenterPos_None)
+    JP_CurrentSoftPosDecayTime = 0.8f;
+    
+    view_set_buffer_scroll(app, view, scroll, SetBufferScroll_SnapCursorIntoView);
+    no_mark_snap_to_cursor(app, view);
+}
+
+CUSTOM_COMMAND_SIG(jp_align_assignments)
+CUSTOM_DOC("Align a block of assignments")
+{
+    Scratch_Block scratch(app);
+    View_ID view = get_active_view(app, Access_ReadWriteVisible);
+    Buffer_ID buffer = view_get_buffer(app, view, Access_ReadWriteVisible);
+    Range_i64 cursor_mark_range = get_view_range(app, view);
+    
+    i64 min_line = get_line_number_from_pos(app, buffer, cursor_mark_range.start);
+    i64 max_line = get_line_number_from_pos(app, buffer, cursor_mark_range.end);
+    
+    History_Group new_history_group = history_group_begin(app, buffer);
+    
+    // NOTE(jack): auto indent to make all assignemnts on the same start col
+    auto_indent_buffer(app, buffer, cursor_mark_range);
+    
+    u64 column_to_bump_to = 0;
+    for (i64 line = min_line; line <= max_line; ++line)
+    {
+        Range_i64 line_range = get_line_pos_range(app, buffer, line);
+        String_Const_u8 string = push_buffer_range(app, scratch, buffer, line_range);
+        
+        u64 first_equals = string_find_first(string, 0, '=');
+        if (first_equals != string.size)
+        {
+            column_to_bump_to = Max(column_to_bump_to, first_equals);
+        }
+    }
+    
+    for (i64 line = min_line; line <= max_line; ++line)
+    {
+        Range_i64 line_range = get_line_pos_range(app, buffer, line);
+        i64 line_start_pos = get_line_start_pos(app, buffer, line);
+        String_Const_u8 string = push_buffer_range(app, scratch, buffer, line_range);
+        
+        u64 first_equals = string_find_first(string, 0, '=');
+        if (first_equals != string.size)
+        {
+            i64 insert_pos = (line_start_pos + first_equals);
+            i64 spaces_to_insert = column_to_bump_to - first_equals;
+            
+            for(i64 i = 0; i < spaces_to_insert; ++i)
+            {
+                buffer_replace_range(app, buffer, Ii64(insert_pos, insert_pos), str8_lit(" "));
+            }
+        }
+    }
+    
+    history_group_end(new_history_group);
 }
 
 //~ NOTE(rjf): Deprecated names:
