@@ -58,6 +58,50 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         }
     }
     
+    {
+        // NOTE(jack): Draw @Autocompletion suggestion
+        // NOTE(jack): if we can find a way to insert _visual_ space in the rendered buffer we can probably 
+        // convert to this check so that we only show the completion if we are on the end of a token.
+        // i64 token_end = scan(app, boundary_alpha_numeric_underscore_utf8, buffer, Scan_Forward, cursor_pos-1);
+        // if (cursor_pos == token_end)
+        
+        i64 line_number = get_line_number_from_pos(app, buffer, cursor_pos);
+        i64 line_number_end = get_line_side(app, buffer, line_number, Side_Max).pos;
+        String_Const_u8 trailing_string = push_buffer_range(app, scratch, buffer, {cursor_pos, line_number_end});
+        
+        // NOTE(jack): We only want to draw the completion if the only following characters are whitespace (maybe change in future)
+        if (string_skip_chop_whitespace(trailing_string).size == 0)
+        {
+            // TODO(jack): Actually verify this works, when I was using the current scratch block for the iterator 
+            // arena it would crash by access violation to pointer which was seamingly in a freed block of the arena.
+            Arena arena = make_arena_system();
+            
+            Word_Complete_Iterator word_complete_iter = {};
+            word_complete_iter.app = app;
+            word_complete_iter.arena = &arena;
+            Word_Complete_Iterator *it = &word_complete_iter;
+            
+            Range_i64 range = get_word_complete_needle_range(app, buffer, cursor_pos);
+            word_complete_iter_init(buffer, range, it);
+            // NOTE(jack): If we dont iterate once, the read will return the "needle"
+            word_complete_iter_next(it);
+            
+            String_Const_u8 completion = word_complete_iter_read(it);
+            String_Const_u8 remaining_completion = string_skip(completion, range_size(range));
+            Rect_f32 cursor_rect = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
+            Vec2_f32 draw_start = cursor_rect.p0;
+            
+            ARGB_Color color = finalize_color(defcolor_text_default, 0);
+            // Set Alpha channel to 0x80
+            color &= 0x00FFFFFF;
+            color |= 0x40000000;
+            
+            draw_string(app, face_id, remaining_completion, draw_start, color);
+            
+            linalloc_clear(&arena);
+        }
+    }
+    
     // NOTE(allen): Line highlight
     {
         b32 highlight_line_at_cursor = def_get_config_b32(vars_save_string_lit("highlight_line_at_cursor"));
@@ -103,7 +147,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     }
     
     // NOTE(jack): Token Occurance Highlight
-    if (!def_get_config_b32(vars_save_string_lit("f4_disable_cursor_token_occurance"))) 
+    if (!def_get_config_b32(vars_save_string_lit("f4_disable_cursor_token_occurance")))
     {
         ProfileScope(app, "[Fleury] Token Occurance Highlight");
         
@@ -417,9 +461,7 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
     View_ID active_view = get_active_view(app, Access_Always);
     b32 is_active_view = (active_view == view_id);
     
-    f32 margin_size = (f32)def_get_config_u64(app, vars_save_string_lit("f4_margin_size"));
     Rect_f32 view_rect = view_get_screen_rect(app, view_id);
-    Rect_f32 region = rect_inner(view_rect, margin_size);
     
     Buffer_ID buffer = view_get_buffer(app, view_id, Access_Always);
     String_Const_u8 buffer_name = push_buffer_base_name(app, scratch, buffer);
@@ -440,22 +482,10 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
                 color = inactive_bg_color;
             }
         }
-        draw_rectangle(app, region, 0.f, color);
-        draw_margin(app, view_rect, region, color);
+        draw_rectangle(app, view_rect, 0.f, color);
     }
     
-    //~ NOTE(rjf): Draw margin.
-    {
-        ARGB_Color color = fcolor_resolve(fcolor_id(defcolor_margin));
-        if(def_get_config_b32(vars_save_string_lit("f4_margin_use_mode_color")) &&
-           is_active_view)
-        {
-            color = F4_GetColor(app, ColorCtx_Cursor(power_mode.enabled ? ColorFlag_PowerMode : 0,
-                                                     GlobalKeybindingMode));
-        }
-        draw_margin(app, view_rect, region, color);
-    }
-    
+    Rect_f32 region = draw_background_and_margin(app, view_id, is_active_view);
     Rect_f32 prev_clip = draw_set_clip(app, region);
     
     Face_ID face_id = get_face_id(app, buffer);
@@ -705,11 +735,12 @@ function BUFFER_HOOK_SIG(F4_BeginBuffer)
         use_lexer = true;
     }
     
+    /*
     if(string_match(buffer_name, string_u8_litexpr("*compilation*")))
     {
         wrap_lines = false;
     }
-    
+    */
     if (use_lexer)
     {
         ProfileBlock(app, "begin buffer kick off lexer");
@@ -857,6 +888,9 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
         }
         
     }
+    
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    wb_4c_tick(app, view);
     
     // NOTE(rjf): Default tick stuff from the 4th dimension:
     default_tick(app, frame_info);
