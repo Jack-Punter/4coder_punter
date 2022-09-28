@@ -476,9 +476,14 @@ void custom_layer_init(Application_Links *app)
         set_custom_hook(app, HookID_BeginBuffer,             F4_BeginBuffer);
         set_custom_hook(app, HookID_Layout,                  F4_Layout);
         set_custom_hook(app, HookID_WholeScreenRenderCaller, F4_WholeScreenRender);
-        set_custom_hook(app, HookID_DeltaRule,               F4_DeltaRule);
+        // set_custom_hook(app, HookID_DeltaRule,               F4_DeltaRule);
+        // set_custom_hook_memory_size(app, HookID_DeltaRule, delta_ctx_size(sizeof(Vec2_f32)));
+        // NOTE(jack): This is the default hook (I believe casey wrote it) feels better
+        // not sure why it isnt used
+        set_custom_hook(app, HookID_DeltaRule,               fixed_time_cubic_delta);
+        set_custom_hook_memory_size(app, HookID_DeltaRule,
+                                    delta_ctx_size(fixed_time_cubic_delta_memory_size));
         set_custom_hook(app, HookID_BufferEditRange,         F4_BufferEditRange);
-        set_custom_hook_memory_size(app, HookID_DeltaRule, delta_ctx_size(sizeof(Vec2_f32)));
     }
     
     // NOTE(rjf): Set up mapping.
@@ -607,7 +612,7 @@ CUSTOM_DOC("Fleury startup event")
             Buffer_ID buffer = view_get_buffer(app, compilation_view, Access_Always);
             Face_ID face_id = get_face_id(app, buffer);
             Face_Metrics metrics = get_face_metrics(app, face_id);
-            view_set_split_pixel_size(app, compilation_view, (i32)(metrics.line_height*4.f));
+            view_set_split_pixel_size(app, compilation_view, (i32)(metrics.line_height*6.f));
             view_set_passive(app, compilation_view, true);
             global_compilation_view = compilation_view;
             view_set_buffer(app, compilation_view, comp_id, 0);

@@ -93,7 +93,7 @@ CUSTOM_DOC("Expand the compilation window.")
     }
     else
     {
-        view_set_split_pixel_size(app, global_compilation_view, (i32)(metrics.line_height*4.f));
+        view_set_split_pixel_size(app, global_compilation_view, (i32)(metrics.line_height*6.f));
     }
 }
 
@@ -1777,7 +1777,7 @@ CUSTOM_DOC("Insert the required number of spaces to get to a specified column nu
     }
 }
 
-//~ NOTE(jack):  @jp-commands
+//~ NOTE(jack): @jp-commands
 CUSTOM_UI_COMMAND_SIG(jp_macro_toggle_recording)
 CUSTOM_DOC("Toggle Recording Keyboard Macro")
 {
@@ -1861,6 +1861,10 @@ CUSTOM_DOC("Copy the text in the range from the cursor to the mark onto the clip
         // ranges by default so I dont need to do this logic here? This would also
         // reduce the strain on the f4_flashes array which limits this code to 64 
         // lines
+        
+        // TODO(jack): This also breaks on a wrapped lines, which makes me think even
+        // more so that I should move this to the rendering code, and have that "just work"
+        // with multi-line ranges.
         for (i64 i = start_line; i <= end_line; ++i)
         {
             Range_i64 line_range = get_line_pos_range(app, buffer, i);
