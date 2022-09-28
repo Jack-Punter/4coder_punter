@@ -99,7 +99,7 @@ keys_file =
     // { "move_right_token_boundary",                  "Right", "Control"        },
     // { "f4_move_right_token_boundary",               "Right", "Control"         },
     { "move_right_whitespace_or_token_boundary",    "Right", "Control"         },
-	// { "move_right_whitespace_boundary",             "Right", "Control"        },
+    // { "move_right_whitespace_boundary",             "Right", "Control"        },
     { "move_right_alpha_numeric_or_camel_boundary", "Right", "Alt"            },
     
     // NOTE(rjf): Up/Down Arrow Keys
@@ -114,13 +114,14 @@ keys_file =
 	
     
     // NOTE(rjf): Alternative Movement Keys
-    { "seek_end_of_line",             "End" },
-    { "f4_home_first_non_whitespace", "Home" },
-    { "page_up",                      "PageUp" },
-    { "page_down",                    "PageDown" },
-    { "goto_beginning_of_file",       "PageUp", "Control" },
-    { "goto_end_of_file",             "PageDown", "Control" },
-    
+    { "seek_end_of_line",                "End" },
+    { "f4_home_first_non_whitespace",    "Home" },
+    { "page_up",                         "PageUp" },
+    { "page_down",                       "PageDown" },
+    { "goto_beginning_of_file",          "PageUp", "Control" },
+    { "goto_end_of_file",                "PageDown", "Control" },
+    { "f4_move_to_next_divider_comment", "Down", "Control",  "Shift" },
+    { "f4_move_to_prev_divider_comment", "Up", "Control", "Shift" },
     // NOTE(rjf): Mark
     { "set_mark",         "Space", "Control" },
     { "cursor_mark_swap", "M",     "Control" },
