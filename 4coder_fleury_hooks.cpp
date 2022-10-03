@@ -1,5 +1,3 @@
-//~ NOTE(rjf): Buffer Render
-
 function void 
 JP_PaintTextLayout(Application_Links *app, Buffer_ID buffer, Text_Layout_ID text_layout_id,
                    Arena *scratch, Token_Array token_array, i64 cursor_pos)
@@ -317,13 +315,26 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_PowerMode_RenderBuffer(app, view_id, face_id, frame_info);
     }
     
-    // NOTE(jack): Draw @Autocompletion suggestion
+    //~ NOTE(jack): Draw @Autocompletion suggestion
     {
+        // TODO(jack): 
+        // [ ] Better manage the animation bits
+        // [ ] Don't suggest on numeric tokens?
+        // [ ] Some kind of motion timeout for inline helpers so that you have to 
+        //     wait a little before they show up, saves sporadic movements when code navigating
+        //      - I may want this on line trailing helpers as well? Experimnet.
+        // [ ] Figure out the weird wrapping behaviour if I dont disable line wrapping for the
+        //     buffer before drawing the relocated text. It's strage to see wrapped content
+        //     reappering on the cursor line when a helper shows up (But not hte end of the world).
         if (is_active_view)
         {
+            // NOTE(jack): Animation Statics:
+            static f32 cur_x_off = 0.0f;
+            static f32 next_x_off = 0.0f;
+            
             i64 line = get_line_number_from_pos(app, buffer, cursor_pos);
-            i64 line_end = get_line_side(app, buffer, line, Side_Max).pos;
-            i64 line_start = get_line_side(app, buffer, line, Side_Min).pos;
+            i64 line_end = get_line_side_pos(app, buffer, line, Side_Max);
+            i64 line_start = get_line_side_pos(app, buffer, line, Side_Min);
             String_Const_u8 trailing_string = push_buffer_range(app, scratch, buffer, {cursor_pos, line_end});
             
             ARGB_Color color = finalize_color(defcolor_text_default, 0);
@@ -338,6 +349,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
             {
                 // TODO(jack): Actually verify this works, when I was using the current scratch block for the iterator 
                 // arena it would crash by access violation to pointer which was seamingly in a freed block of the arena.
+                // Couple days later of using it, and I'm yet to see it crash so i _think_ we're good.
                 Arena arena = make_arena_system();
                 Rect_f32 cursor_rect = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
                 
@@ -395,9 +407,20 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
                         line_rect.x1 = screen_rect.x1;
                         line_rect.y1 = draw_start.y + metrics.line_height;
                         
-                        Rect_f32 layout_rect = line_rect;
-                        layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
+                        // TODO(jack): Animate here
+                        // cur += (nxt - cur) * (1.f - Pow(rate, app.dt))
+                        next_x_off = metrics.normal_advance * remaining_completion.size;
+                        cur_x_off += (next_x_off - cur_x_off) * (1.0f - powf(1e-11f, frame_info.animation_dt));
                         
+                        if (fabsf(next_x_off - cur_x_off) > 0.0001f) {
+                            animate_in_n_milliseconds(app, 0);
+                        }
+                        
+                        Rect_f32 layout_rect = line_rect;
+                        layout_rect.x0 = draw_start.x + cur_x_off;
+                        //layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
+                        
+                        // NOTE(jack): Disable  
                         b32 old_wrap_lines = false;
                         Managed_Scope scope = buffer_get_managed_scope(app, buffer);
                         b32 *wrap_lines_ptr = scope_attachment(app, scope, buffer_wrap_lines, b32);
@@ -409,33 +432,16 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
                         
                         Text_Layout_ID remaining_layout_layout = text_layout_create(app, buffer, layout_rect, bp);
                         
-                        // TODO(jack): This is copied from eariler, dont do this.
-                        paint_text_color_fcolor(app, remaining_layout_layout, Ii64(cursor_pos, line_end), fcolor_id(defcolor_text_default));
-                        Token_Array token_array = get_token_array_from_buffer(app, buffer);
-                        if(token_array.tokens != 0)
-                        {
-                            F4_SyntaxHighlight(app, remaining_layout_layout, &token_array);
-                            
-                            // NOTE(allen): Scan for TODOs and NOTEs
-                            b32 use_comment_keywords = def_get_config_b32(vars_save_string_lit("use_comment_keywords"));
-                            if(use_comment_keywords)
-                            {
-                                Comment_Highlight_Pair pairs[] =
-                                {
-                                    {str8_lit("NOTE"), finalize_color(defcolor_comment_pop, 0)},
-                                    {str8_lit("TODO"), finalize_color(defcolor_comment_pop, 1)},
-                                    {def_get_config_string(scratch, vars_save_string_lit("user_name")), finalize_color(fleury_color_comment_user_name, 0)},
-                                };
-                                
-                                draw_comment_highlights(app, buffer, remaining_layout_layout,
-                                                        &token_array, pairs, ArrayCount(pairs));
-                            }
-                        }
+                        JP_PaintTextLayout(app, buffer, remaining_layout_layout, scratch, token_array, cursor_pos); 
+                        
                         draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_back));
                         draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_highlight_cursor_line));
                         draw_string(app, face_id, remaining_completion, draw_start, color);
                         
                         // draw_rectangle_outline(app, layout_rect, 4.0f, 2.0f, 0xff00FF00);
+                        
+                        // NOTE(jack) If we dont set the clip rect the whole line will get rendered
+                        // even if it is outside of the layout_rect 
                         Rect_f32 old = draw_set_clip(app, layout_rect);
                         draw_text_layout_default(app, remaining_layout_layout);
                         old = draw_set_clip(app, old);
@@ -445,22 +451,29 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
                             buffer_clear_layout_cache(app, buffer);
                         }
                         
-                        // TODO(jack): Redraw Dursor (as it  got overwritten by the line)
-                        // This does not take into consideration emacs mode. fix.
-                        F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
+                        F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
+                        
 #endif
                     }
+                }
+                else 
+                {
+                    // TODO(jack): Find a better place to reset this?
+                    // Having to do it in two places feels wrong 
+                    // (tbh i probably want to completely rewrite this to be a little less messy)
+                    cur_x_off = 0.0f;
                 }
                 
                 linalloc_clear(&arena);
             }
+            else
+            {
+                cur_x_off = 0.0f;
+            }
         }
     }
-    
-    
     draw_set_clip(app, prev_clip);
 }
-
 //~ NOTE(rjf): Render hook
 
 function void
