@@ -1,20 +1,12 @@
 //~ NOTE(rjf): Buffer Render
 
-function void
-F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
-                Buffer_ID buffer, Text_Layout_ID text_layout_id,
-                Rect_f32 rect, Frame_Info frame_info)
+function void 
+JP_PaintTextLayout(Application_Links *app, Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                   Arena *scratch, Token_Array token_array, i64 cursor_pos)
 {
-    Scratch_Block scratch(app);
     ProfileScope(app, "[Fleury] Render Buffer");
     
-    View_ID active_view = get_active_view(app, Access_Always);
-    b32 is_active_view = (active_view == view_id);
-    Rect_f32 prev_clip = draw_set_clip(app, rect);
-    Face_Metrics metrics = get_face_metrics(app, face_id);
-    
     // NOTE(allen): Token colorizing
-    Token_Array token_array = get_token_array_from_buffer(app, buffer);
     if(token_array.tokens != 0)
     {
         F4_SyntaxHighlight(app, text_layout_id, &token_array);
@@ -39,7 +31,32 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         paint_text_color_fcolor(app, text_layout_id, visible_range, fcolor_id(defcolor_text_default));
     }
     
+    // NOTE(allen): Color parens
+    if(def_get_config_b32(vars_save_string_lit("use_paren_helper")))
+    {
+        Color_Array colors = finalize_color_array(defcolor_text_cycle);
+        draw_paren_highlight(app, buffer, text_layout_id, cursor_pos, colors.vals, colors.count);
+    }
+}
+
+//~ NOTE(rjf): Buffer Render
+function void
+F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
+                Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                Rect_f32 rect, Frame_Info frame_info)
+{
+    Scratch_Block scratch(app);
+    ProfileScope(app, "[Fleury] Render Buffer");
+    
+    View_ID active_view = get_active_view(app, Access_Always);
+    b32 is_active_view = (active_view == view_id);
+    Rect_f32 prev_clip = draw_set_clip(app, rect);
+    Face_Metrics metrics = get_face_metrics(app, face_id);
     i64 cursor_pos = view_correct_cursor(app, view_id);
+    Token_Array token_array = get_token_array_from_buffer(app, buffer);
+    
+    JP_PaintTextLayout(app, buffer, text_layout_id, scratch, token_array, cursor_pos); 
+    
     view_correct_mark(app, view_id);
     
     // NOTE(allen): Scope highlight
@@ -162,9 +179,9 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
             }
         }
     }
-    // NOTE(jack): if "f4_disable_cursor_token_occurance" is set, just highlight the cusror 
     else
     {
+        // NOTE(jack): if "f4_disable_cursor_token_occurance" is set, just highlight the cusror 
         ProfileScope(app, "[Fleury] Token Highlight");
         
         Token_Iterator_Array it = token_iterator_pos(0, &token_array, cursor_pos);
@@ -183,13 +200,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_RenderFlashes(app, view_id, text_layout_id);
     }
     
-    // NOTE(allen): Color parens
-    if(def_get_config_b32(vars_save_string_lit("use_paren_helper")))
-    {
-        Color_Array colors = finalize_color_array(defcolor_text_cycle);
-        draw_paren_highlight(app, buffer, text_layout_id, cursor_pos, colors.vals, colors.count);
-    }
-    
     // NOTE(rjf): Divider Comments
     {
         F4_RenderDividerComments(app, buffer, view_id, text_layout_id);
@@ -206,22 +216,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     f32 cursor_roundness = metrics.normal_advance*cursor_roundness_100*0.01f;
     f32 mark_thickness = (f32)def_get_config_u64(app, vars_save_string_lit("mark_thickness"));
     
-    // NOTE(rjf): Cursor
-    switch (fcoder_mode)
-    {
-        case FCoderMode_Original:
-        {
-            F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
-        }break;
-        
-        case FCoderMode_NotepadLike:
-        {
-            F4_Cursor_RenderNotepadStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness,
-                                         mark_thickness, frame_info);
-            break;
-        }
-    }
-    
     // NOTE(rjf): Brace annotations
     {
         F4_Brace_RenderCloseBraceAnnotation(app, buffer, text_layout_id, cursor_pos);
@@ -232,6 +226,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_Brace_RenderLines(app, buffer, view_id, text_layout_id, cursor_pos);
     }
     
+    F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
     // NOTE(allen): put the actual text on the actual screen
     draw_text_layout_default(app, text_layout_id);
     

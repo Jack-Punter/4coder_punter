@@ -368,6 +368,27 @@ F4_HighlightCursorMarkRange(Application_Links *app, View_ID view_id)
     draw_set_clip(app, clip);
 }
 
+function void
+F4_Cursor_Render(Application_Links *app, View_ID view_id, b32 is_active_view,
+                 Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                 f32 roundness, f32 outline_thickness, Frame_Info frame_info)
+{
+    // NOTE(rjf): Cursor
+    switch (fcoder_mode)
+    {
+        case FCoderMode_Original:
+        {
+            F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, roundness, outline_thickness, frame_info);
+        }break;
+        
+        case FCoderMode_NotepadLike:
+        {
+            F4_Cursor_RenderNotepadStyle(app, view_id, is_active_view, buffer, text_layout_id, roundness,
+                                         outline_thickness, frame_info);
+            break;
+        }
+    }
+}
 
 //~ NOTE(rjf): Mark Annotation
 
