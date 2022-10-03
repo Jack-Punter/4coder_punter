@@ -1909,26 +1909,25 @@ CUSTOM_DOC("Aligns the line the cusor is on with alternating regions of the scre
     Buffer_Scroll scroll = view_get_buffer_scroll(app, view);
     scroll.target.line_number = cursor.line;
     
-    if (JP_CurrentSoftPos == SoftCenterPos_None)
+    switch(JP_CurrentSoftPos)
     {
-        scroll.target.pixel_shift.y = -view_height*0.2f;
-        JP_CurrentSoftPos = SoftCenterPos_Top;
+        case SoftCenterPos_None:
+        case SoftCenterPos_Bottom: {
+            scroll.target.pixel_shift.y = -view_height*0.1f;
+            JP_CurrentSoftPos = SoftCenterPos_Top;
+        } break;
+        
+        case SoftCenterPos_Top: {
+            scroll.target.pixel_shift.y = -view_height*0.5f;
+            JP_CurrentSoftPos= SoftCenterPos_Center;
+        } break;
+        
+        case SoftCenterPos_Center: {
+            scroll.target.pixel_shift.y = -view_height*0.9f;
+            JP_CurrentSoftPos = SoftCenterPos_Bottom;
+        } break;
     }
-    else if (JP_CurrentSoftPos == SoftCenterPos_Top)
-    {
-        scroll.target.pixel_shift.y = -view_height*0.5f;
-        JP_CurrentSoftPos= SoftCenterPos_Center;
-    }
-    else if (JP_CurrentSoftPos == SoftCenterPos_Center)
-    {
-        scroll.target.pixel_shift.y = -view_height*0.8f;
-        JP_CurrentSoftPos = SoftCenterPos_Bottom;
-    }
-    else if (JP_CurrentSoftPos == SoftCenterPos_Bottom) 
-    {
-        scroll.target.pixel_shift.y = -view_height*0.2f;
-        JP_CurrentSoftPos= SoftCenterPos_Top;
-    }
+    
     // NOTE(jack): This is a pretty innacurate decay time (until the global state resets to SoftCenterPos_None)
     JP_CurrentSoftPosDecayTime = 0.8f;
     
