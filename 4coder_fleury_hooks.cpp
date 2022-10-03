@@ -11,6 +11,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     View_ID active_view = get_active_view(app, Access_Always);
     b32 is_active_view = (active_view == view_id);
     Rect_f32 prev_clip = draw_set_clip(app, rect);
+    Face_Metrics metrics = get_face_metrics(app, face_id);
     
     // NOTE(allen): Token colorizing
     Token_Array token_array = get_token_array_from_buffer(app, buffer);
@@ -55,50 +56,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         {
             F4_Brace_RenderHighlight(app, buffer, text_layout_id, cursor_pos,
                                      colors.vals, colors.count);
-        }
-    }
-    
-    {
-        // NOTE(jack): Draw @Autocompletion suggestion
-        // NOTE(jack): if we can find a way to insert _visual_ space in the rendered buffer we can probably 
-        // convert to this check so that we only show the completion if we are on the end of a token.
-        // i64 token_end = scan(app, boundary_alpha_numeric_underscore_utf8, buffer, Scan_Forward, cursor_pos-1);
-        // if (cursor_pos == token_end)
-        
-        i64 line_number = get_line_number_from_pos(app, buffer, cursor_pos);
-        i64 line_number_end = get_line_side(app, buffer, line_number, Side_Max).pos;
-        String_Const_u8 trailing_string = push_buffer_range(app, scratch, buffer, {cursor_pos, line_number_end});
-        
-        // NOTE(jack): We only want to draw the completion if the only following characters are whitespace (maybe change in future)
-        if (string_skip_chop_whitespace(trailing_string).size == 0)
-        {
-            // TODO(jack): Actually verify this works, when I was using the current scratch block for the iterator 
-            // arena it would crash by access violation to pointer which was seamingly in a freed block of the arena.
-            Arena arena = make_arena_system();
-            
-            Word_Complete_Iterator word_complete_iter = {};
-            word_complete_iter.app = app;
-            word_complete_iter.arena = &arena;
-            Word_Complete_Iterator *it = &word_complete_iter;
-            
-            Range_i64 range = get_word_complete_needle_range(app, buffer, cursor_pos);
-            word_complete_iter_init(buffer, range, it);
-            // NOTE(jack): If we dont iterate once, the read will return the "needle"
-            word_complete_iter_next(it);
-            
-            String_Const_u8 completion = word_complete_iter_read(it);
-            String_Const_u8 remaining_completion = string_skip(completion, range_size(range));
-            Rect_f32 cursor_rect = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
-            Vec2_f32 draw_start = cursor_rect.p0;
-            
-            ARGB_Color color = finalize_color(defcolor_text_default, 0);
-            // Set Alpha channel to 0x80
-            color &= 0x00FFFFFF;
-            color |= 0x40000000;
-            
-            draw_string(app, face_id, remaining_completion, draw_start, color);
-            
-            linalloc_clear(&arena);
         }
     }
     
@@ -245,7 +202,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     }
     
     // NOTE(allen): Cursor shape
-    Face_Metrics metrics = get_face_metrics(app, face_id);
     u64 cursor_roundness_100 = def_get_config_u64(app, vars_save_string_lit("cursor_roundness"));
     f32 cursor_roundness = metrics.normal_advance*cursor_roundness_100*0.01f;
     f32 mark_thickness = (f32)def_get_config_u64(app, vars_save_string_lit("mark_thickness"));
@@ -292,8 +248,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     {
         F4_CLC_RenderComments(app, buffer, view_id, text_layout_id, frame_info);
     }
-    
-    draw_set_clip(app, prev_clip);
     
     // NOTE(rjf): Draw tooltips and stuff.
     if(active_view == view_id)
@@ -368,6 +322,148 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_PowerMode_RenderBuffer(app, view_id, face_id, frame_info);
     }
     
+    // NOTE(jack): Draw @Autocompletion suggestion
+    {
+        if (is_active_view)
+        {
+            i64 line = get_line_number_from_pos(app, buffer, cursor_pos);
+            i64 line_end = get_line_side(app, buffer, line, Side_Max).pos;
+            i64 line_start = get_line_side(app, buffer, line, Side_Min).pos;
+            String_Const_u8 trailing_string = push_buffer_range(app, scratch, buffer, {cursor_pos, line_end});
+            
+            ARGB_Color color = finalize_color(defcolor_text_default, 0);
+            // Set Alpha channel to 0x80
+            color &= 0x00FFFFFF;
+            color |= 0x40000000;
+            
+            b32 is_last_non_whitespace = (string_skip_chop_whitespace(trailing_string).size == 0);
+            
+            i64 token_end = scan(app, boundary_alpha_numeric_underscore_utf8, buffer, Scan_Forward, cursor_pos-1);
+            if (cursor_pos == token_end)
+            {
+                // TODO(jack): Actually verify this works, when I was using the current scratch block for the iterator 
+                // arena it would crash by access violation to pointer which was seamingly in a freed block of the arena.
+                Arena arena = make_arena_system();
+                Rect_f32 cursor_rect = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
+                
+                Word_Complete_Iterator word_complete_iter = {};
+                word_complete_iter.app = app;
+                word_complete_iter.arena = &arena;
+                Word_Complete_Iterator *it = &word_complete_iter;
+                
+                Range_i64 range = get_word_complete_needle_range(app, buffer, cursor_pos);
+                word_complete_iter_init(buffer, range, it);
+                // NOTE(jack): If we dont iterate once, the read will return the "needle"
+                word_complete_iter_next(it);
+                
+                String_Const_u8 completion = word_complete_iter_read(it);
+                String_Const_u8 remaining_completion = string_skip(completion, range_size(range));
+                
+                if (remaining_completion.size > 0)
+                {
+                    if (is_last_non_whitespace)
+                    {
+                        Vec2_f32 draw_start = cursor_rect.p0;
+                        draw_string(app, face_id, remaining_completion, draw_start, color);
+                    }
+                    else
+                    {
+#if 0
+                        Vec2_f32 draw_start = cursor_rect.p0;
+                        draw_start.y -= metrics.line_height;
+                        
+                        ARGB_Color background_color = finalize_color(defcolor_back, 0);
+                        ARGB_Color border_color = finalize_color(defcolor_margin_active, 0);
+                        f32 padding = 2.0f;
+                        Rect_f32 border_rect = Rf32(draw_start.x - padding,
+                                                    draw_start.y - padding,
+                                                    draw_start.x + remaining_completion.size * metrics.normal_advance + padding,
+                                                    draw_start.y + metrics.line_height + padding);
+                        
+                        Rect_f32 draw_rect = border_rect + some_other_rect; 
+                        
+                        draw_rectangle(app, draw_rect, 4.0f, background_color);
+                        draw_rectangle_outline(app, draw_rect, 4.0f, 2.0f, border_color);
+                        draw_string(app, face_id, remaining_completion, draw_start, color);
+#else
+                        Vec2_f32 draw_start = cursor_rect.p0;
+                        Rect_f32 screen_rect = view_get_screen_rect(app, view_id);
+                        
+                        f32 remaining_x_offset = metrics.normal_advance * (cursor_pos - line_start);
+                        Buffer_Point bp;
+                        bp.line_number = line;
+                        bp.pixel_shift = V2f32(remaining_x_offset, 0.0f);
+                        
+                        Rect_f32 line_rect;
+                        line_rect.x0 = draw_start.x;
+                        line_rect.y0 = draw_start.y;
+                        line_rect.x1 = screen_rect.x1;
+                        line_rect.y1 = draw_start.y + metrics.line_height;
+                        
+                        Rect_f32 layout_rect = line_rect;
+                        layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
+                        
+                        b32 old_wrap_lines = false;
+                        Managed_Scope scope = buffer_get_managed_scope(app, buffer);
+                        b32 *wrap_lines_ptr = scope_attachment(app, scope, buffer_wrap_lines, b32);
+                        if (wrap_lines_ptr != 0){
+                            old_wrap_lines = *wrap_lines_ptr;
+                            *wrap_lines_ptr = false;
+                            buffer_clear_layout_cache(app, buffer);
+                        }
+                        
+                        Text_Layout_ID remaining_layout_layout = text_layout_create(app, buffer, layout_rect, bp);
+                        
+                        // TODO(jack): This is copied from eariler, dont do this.
+                        paint_text_color_fcolor(app, remaining_layout_layout, Ii64(cursor_pos, line_end), fcolor_id(defcolor_text_default));
+                        Token_Array token_array = get_token_array_from_buffer(app, buffer);
+                        if(token_array.tokens != 0)
+                        {
+                            F4_SyntaxHighlight(app, remaining_layout_layout, &token_array);
+                            
+                            // NOTE(allen): Scan for TODOs and NOTEs
+                            b32 use_comment_keywords = def_get_config_b32(vars_save_string_lit("use_comment_keywords"));
+                            if(use_comment_keywords)
+                            {
+                                Comment_Highlight_Pair pairs[] =
+                                {
+                                    {str8_lit("NOTE"), finalize_color(defcolor_comment_pop, 0)},
+                                    {str8_lit("TODO"), finalize_color(defcolor_comment_pop, 1)},
+                                    {def_get_config_string(scratch, vars_save_string_lit("user_name")), finalize_color(fleury_color_comment_user_name, 0)},
+                                };
+                                
+                                draw_comment_highlights(app, buffer, remaining_layout_layout,
+                                                        &token_array, pairs, ArrayCount(pairs));
+                            }
+                        }
+                        draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_back));
+                        draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_highlight_cursor_line));
+                        draw_string(app, face_id, remaining_completion, draw_start, color);
+                        
+                        // draw_rectangle_outline(app, layout_rect, 4.0f, 2.0f, 0xff00FF00);
+                        Rect_f32 old = draw_set_clip(app, layout_rect);
+                        draw_text_layout_default(app, remaining_layout_layout);
+                        old = draw_set_clip(app, old);
+                        
+                        if (wrap_lines_ptr != 0) {
+                            *wrap_lines_ptr = old_wrap_lines;
+                            buffer_clear_layout_cache(app, buffer);
+                        }
+                        
+                        // TODO(jack): Redraw Dursor (as it  got overwritten by the line)
+                        // This does not take into consideration emacs mode. fix.
+                        F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
+#endif
+                    }
+                }
+                
+                linalloc_clear(&arena);
+            }
+        }
+    }
+    
+    
+    draw_set_clip(app, prev_clip);
 }
 
 //~ NOTE(rjf): Render hook

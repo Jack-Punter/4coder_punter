@@ -492,6 +492,13 @@ internal F4_LANGUAGE_POSCONTEXT(F4_CPP_PosContext)
             Token *token = token_it_read(&it);
             if(token)
             {
+                // TODO(jack): Hack to prevent pos context comming up if you are on the end of the function name
+                // but not inside the parameter list.
+                if (paren_nest == 0 && 
+                    (token->pos == pos) && 
+                    token->sub_kind == TokenCppKind_ParenOp)
+                { break; }
+                
                 if(paren_nest == 0 &&
                    token->sub_kind == TokenCppKind_ParenOp &&
                    token_it_dec_non_whitespace(&it))
