@@ -331,6 +331,8 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
             // NOTE(jack): Animation Statics:
             static f32 cur_x_off = 0.0f;
             static f32 next_x_off = 0.0f;
+            static float midline_helper_delay = 1.0f;
+            static float midline_helper_current_t = 0.0f;
             
             i64 line = get_line_number_from_pos(app, buffer, cursor_pos);
             i64 line_end = get_line_side_pos(app, buffer, line, Side_Max);
@@ -370,90 +372,78 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
                 {
                     if (is_last_non_whitespace)
                     {
+                        // NOTE(jack): We can safely just draw after the cursor immediatley.
                         Vec2_f32 draw_start = cursor_rect.p0;
                         draw_string(app, face_id, remaining_completion, draw_start, color);
                     }
                     else
                     {
-#if 0
-                        Vec2_f32 draw_start = cursor_rect.p0;
-                        draw_start.y -= metrics.line_height;
-                        
-                        ARGB_Color background_color = finalize_color(defcolor_back, 0);
-                        ARGB_Color border_color = finalize_color(defcolor_margin_active, 0);
-                        f32 padding = 2.0f;
-                        Rect_f32 border_rect = Rf32(draw_start.x - padding,
-                                                    draw_start.y - padding,
-                                                    draw_start.x + remaining_completion.size * metrics.normal_advance + padding,
-                                                    draw_start.y + metrics.line_height + padding);
-                        
-                        Rect_f32 draw_rect = border_rect + some_other_rect; 
-                        
-                        draw_rectangle(app, draw_rect, 4.0f, background_color);
-                        draw_rectangle_outline(app, draw_rect, 4.0f, 2.0f, border_color);
-                        draw_string(app, face_id, remaining_completion, draw_start, color);
-#else
-                        Vec2_f32 draw_start = cursor_rect.p0;
-                        Rect_f32 screen_rect = view_get_screen_rect(app, view_id);
-                        
-                        f32 remaining_x_offset = metrics.normal_advance * (cursor_pos - line_start);
-                        Buffer_Point bp;
-                        bp.line_number = line;
-                        bp.pixel_shift = V2f32(remaining_x_offset, 0.0f);
-                        
-                        Rect_f32 line_rect;
-                        line_rect.x0 = draw_start.x;
-                        line_rect.y0 = draw_start.y;
-                        line_rect.x1 = screen_rect.x1;
-                        line_rect.y1 = draw_start.y + metrics.line_height;
-                        
-                        // TODO(jack): Animate here
-                        // cur += (nxt - cur) * (1.f - Pow(rate, app.dt))
-                        next_x_off = metrics.normal_advance * remaining_completion.size;
-                        cur_x_off += (next_x_off - cur_x_off) * (1.0f - powf(1e-11f, frame_info.animation_dt));
-                        
-                        if (fabsf(next_x_off - cur_x_off) > 0.0001f) {
+                        // NOTE(jack): Wait 3 seconds before showing the mid-line helper
+                        if (midline_helper_current_t < midline_helper_delay)
+                        {
+                            midline_helper_current_t += frame_info.animation_dt;
                             animate_in_n_milliseconds(app, 0);
                         }
-                        
-                        Rect_f32 layout_rect = line_rect;
-                        layout_rect.x0 = draw_start.x + cur_x_off;
-                        //layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
-                        
-                        // NOTE(jack): Disable  
-                        b32 old_wrap_lines = false;
-                        Managed_Scope scope = buffer_get_managed_scope(app, buffer);
-                        b32 *wrap_lines_ptr = scope_attachment(app, scope, buffer_wrap_lines, b32);
-                        if (wrap_lines_ptr != 0){
-                            old_wrap_lines = *wrap_lines_ptr;
-                            *wrap_lines_ptr = false;
-                            buffer_clear_layout_cache(app, buffer);
+                        else
+                        {
+                            Vec2_f32 draw_start = cursor_rect.p0;
+                            Rect_f32 screen_rect = view_get_screen_rect(app, view_id);
+                            
+                            f32 remaining_x_offset = metrics.normal_advance * (cursor_pos - line_start);
+                            Buffer_Point bp;
+                            bp.line_number = line;
+                            bp.pixel_shift = V2f32(remaining_x_offset, 0.0f);
+                            
+                            Rect_f32 line_rect = Rf32(draw_start.x, draw_start.y,
+                                                      screen_rect.x1, draw_start.y + metrics.line_height);
+                            
+                            // TODO(jack): Animate here
+                            // cur += (nxt - cur) * (1.f - Pow(rate, app.dt))
+                            next_x_off = metrics.normal_advance * remaining_completion.size;
+                            cur_x_off += (next_x_off - cur_x_off) * (1.0f - powf(1e-11f, frame_info.animation_dt));
+                            
+                            if (fabsf(next_x_off - cur_x_off) > 0.0001f) {
+                                animate_in_n_milliseconds(app, 0);
+                            }
+                            
+                            Rect_f32 layout_rect = line_rect;
+                            layout_rect.x0 = draw_start.x + cur_x_off;
+                            //layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
+                            
+                            // NOTE(jack): Disable  
+                            b32 old_wrap_lines = false;
+                            Managed_Scope scope = buffer_get_managed_scope(app, buffer);
+                            b32 *wrap_lines_ptr = scope_attachment(app, scope, buffer_wrap_lines, b32);
+                            if (wrap_lines_ptr != 0){
+                                old_wrap_lines = *wrap_lines_ptr;
+                                *wrap_lines_ptr = false;
+                                buffer_clear_layout_cache(app, buffer);
+                            }
+                            
+                            Text_Layout_ID remaining_layout_layout = text_layout_create(app, buffer, layout_rect, bp);
+                            
+                            JP_PaintTextLayout(app, buffer, remaining_layout_layout, scratch, token_array, cursor_pos); 
+                            
+                            draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_back));
+                            draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_highlight_cursor_line));
+                            draw_string(app, face_id, remaining_completion, draw_start, color);
+                            
+                            // draw_rectangle_outline(app, layout_rect, 4.0f, 2.0f, 0xff00FF00);
+                            
+                            // NOTE(jack) If we dont set the clip rect the whole line will get rendered
+                            // even if it is outside of the layout_rect 
+                            Rect_f32 old = draw_set_clip(app, layout_rect);
+                            draw_text_layout_default(app, remaining_layout_layout);
+                            old = draw_set_clip(app, old);
+                            
+                            if (wrap_lines_ptr != 0) {
+                                *wrap_lines_ptr = old_wrap_lines;
+                                buffer_clear_layout_cache(app, buffer);
+                            }
+                            
+                            // NOTE(jack): Redraw the cursor as the background rect coveres it.
+                            F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
                         }
-                        
-                        Text_Layout_ID remaining_layout_layout = text_layout_create(app, buffer, layout_rect, bp);
-                        
-                        JP_PaintTextLayout(app, buffer, remaining_layout_layout, scratch, token_array, cursor_pos); 
-                        
-                        draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_back));
-                        draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_highlight_cursor_line));
-                        draw_string(app, face_id, remaining_completion, draw_start, color);
-                        
-                        // draw_rectangle_outline(app, layout_rect, 4.0f, 2.0f, 0xff00FF00);
-                        
-                        // NOTE(jack) If we dont set the clip rect the whole line will get rendered
-                        // even if it is outside of the layout_rect 
-                        Rect_f32 old = draw_set_clip(app, layout_rect);
-                        draw_text_layout_default(app, remaining_layout_layout);
-                        old = draw_set_clip(app, old);
-                        
-                        if (wrap_lines_ptr != 0) {
-                            *wrap_lines_ptr = old_wrap_lines;
-                            buffer_clear_layout_cache(app, buffer);
-                        }
-                        
-                        F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
-                        
-#endif
                     }
                 }
                 else 
@@ -462,20 +452,22 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
                     // Having to do it in two places feels wrong 
                     // (tbh i probably want to completely rewrite this to be a little less messy)
                     cur_x_off = 0.0f;
+                    midline_helper_current_t = 0.0f;
                 }
                 
                 linalloc_clear(&arena);
             }
             else
             {
+                midline_helper_current_t = 0.0f;
                 cur_x_off = 0.0f;
             }
         }
     }
     draw_set_clip(app, prev_clip);
 }
-//~ NOTE(rjf): Render hook
 
+//~ NOTE(rjf): Render hook
 function void
 F4_DrawFileBar(Application_Links *app, View_ID view_id, Buffer_ID buffer, Face_ID face_id, Rect_f32 bar)
 {
