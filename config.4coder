@@ -42,7 +42,7 @@ lister_roundness = 20;
 // Code Wrapping
 treat_as_code = ".cpp.c.hpp.h.cc.odin.glsl.4coder.vert.frag";
 enable_virtual_whitespace = true;
-virtual_whitespace_regular_indent = 4;
+virtual_whitespace_regular_indent = 2;
 enable_code_wrapping = true;
 
 // This only applies to code files in code-wrapping mode.
@@ -61,12 +61,13 @@ indent_width = 4;
 default_tab_width = 4;
 
 // Theme
-default_theme_name = "theme-jp_4coder";
+default_theme_name = "theme-ayu_dark";
 highlight_line_at_cursor = true;
 
 // Font
 default_font_name = "JetBrainsMono-Regular.ttf";
 default_font_size = 15;
+default_font_size = 16;
 default_font_hinting = true;
 
 // aa modes:

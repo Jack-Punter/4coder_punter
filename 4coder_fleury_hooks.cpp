@@ -985,8 +985,8 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
         
     }
     
-    // View_ID view = get_active_view(app, Access_ReadVisible);
-    // wb_4c_tick(app, view);
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    wb_4c_tick(app, view);
     
     // NOTE(rjf): Default tick stuff from the 4th dimension:
     default_tick(app, frame_info);
