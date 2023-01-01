@@ -1,19 +1,10 @@
-//~ NOTE(rjf): Buffer Render
-
-function void
-F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
-                Buffer_ID buffer, Text_Layout_ID text_layout_id,
-                Rect_f32 rect, Frame_Info frame_info)
+function void 
+JP_PaintTextLayout(Application_Links *app, Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                   Arena *scratch, Token_Array token_array, i64 cursor_pos)
 {
-    Scratch_Block scratch(app);
     ProfileScope(app, "[Fleury] Render Buffer");
     
-    View_ID active_view = get_active_view(app, Access_Always);
-    b32 is_active_view = (active_view == view_id);
-    Rect_f32 prev_clip = draw_set_clip(app, rect);
-    
     // NOTE(allen): Token colorizing
-    Token_Array token_array = get_token_array_from_buffer(app, buffer);
     if(token_array.tokens != 0)
     {
         F4_SyntaxHighlight(app, text_layout_id, &token_array);
@@ -38,7 +29,32 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         paint_text_color_fcolor(app, text_layout_id, visible_range, fcolor_id(defcolor_text_default));
     }
     
+    // NOTE(allen): Color parens
+    if(def_get_config_b32(vars_save_string_lit("use_paren_helper")))
+    {
+        Color_Array colors = finalize_color_array(defcolor_text_cycle);
+        draw_paren_highlight(app, buffer, text_layout_id, cursor_pos, colors.vals, colors.count);
+    }
+}
+
+//~ NOTE(rjf): Buffer Render
+function void
+F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
+                Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                Rect_f32 rect, Frame_Info frame_info)
+{
+    Scratch_Block scratch(app);
+    ProfileScope(app, "[Fleury] Render Buffer");
+    
+    View_ID active_view = get_active_view(app, Access_Always);
+    b32 is_active_view = (active_view == view_id);
+    Rect_f32 prev_clip = draw_set_clip(app, rect);
+    Face_Metrics metrics = get_face_metrics(app, face_id);
     i64 cursor_pos = view_correct_cursor(app, view_id);
+    Token_Array token_array = get_token_array_from_buffer(app, buffer);
+    
+    JP_PaintTextLayout(app, buffer, text_layout_id, scratch, token_array, cursor_pos); 
+    
     view_correct_mark(app, view_id);
     
     // NOTE(allen): Scope highlight
@@ -103,7 +119,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     }
     
     // NOTE(jack): Token Occurance Highlight
-    if (!def_get_config_b32(vars_save_string_lit("f4_disable_cursor_token_occurance"))) 
+    if (!def_get_config_b32(vars_save_string_lit("f4_disable_cursor_token_occurance")))
     {
         ProfileScope(app, "[Fleury] Token Occurance Highlight");
         
@@ -161,9 +177,9 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
             }
         }
     }
-    // NOTE(jack): if "f4_disable_cursor_token_occurance" is set, just highlight the cusror 
     else
     {
+        // NOTE(jack): if "f4_disable_cursor_token_occurance" is set, just highlight the cusror 
         ProfileScope(app, "[Fleury] Token Highlight");
         
         Token_Iterator_Array it = token_iterator_pos(0, &token_array, cursor_pos);
@@ -182,13 +198,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_RenderFlashes(app, view_id, text_layout_id);
     }
     
-    // NOTE(allen): Color parens
-    if(def_get_config_b32(vars_save_string_lit("use_paren_helper")))
-    {
-        Color_Array colors = finalize_color_array(defcolor_text_cycle);
-        draw_paren_highlight(app, buffer, text_layout_id, cursor_pos, colors.vals, colors.count);
-    }
-    
     // NOTE(rjf): Divider Comments
     {
         F4_RenderDividerComments(app, buffer, view_id, text_layout_id);
@@ -201,26 +210,9 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     }
     
     // NOTE(allen): Cursor shape
-    Face_Metrics metrics = get_face_metrics(app, face_id);
     u64 cursor_roundness_100 = def_get_config_u64(app, vars_save_string_lit("cursor_roundness"));
     f32 cursor_roundness = metrics.normal_advance*cursor_roundness_100*0.01f;
     f32 mark_thickness = (f32)def_get_config_u64(app, vars_save_string_lit("mark_thickness"));
-    
-    // NOTE(rjf): Cursor
-    switch (fcoder_mode)
-    {
-        case FCoderMode_Original:
-        {
-            F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
-        }break;
-        
-        case FCoderMode_NotepadLike:
-        {
-            F4_Cursor_RenderNotepadStyle(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness,
-                                         mark_thickness, frame_info);
-            break;
-        }
-    }
     
     // NOTE(rjf): Brace annotations
     {
@@ -232,6 +224,7 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_Brace_RenderLines(app, buffer, view_id, text_layout_id, cursor_pos);
     }
     
+    F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
     // NOTE(allen): put the actual text on the actual screen
     draw_text_layout_default(app, text_layout_id);
     
@@ -248,8 +241,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     {
         F4_CLC_RenderComments(app, buffer, view_id, text_layout_id, frame_info);
     }
-    
-    draw_set_clip(app, prev_clip);
     
     // NOTE(rjf): Draw tooltips and stuff.
     if(active_view == view_id)
@@ -324,10 +315,159 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         F4_PowerMode_RenderBuffer(app, view_id, face_id, frame_info);
     }
     
+    //~ NOTE(jack): Draw @Autocompletion suggestion
+    {
+        // TODO(jack): 
+        // [ ] Better manage the animation bits
+        // [ ] Don't suggest on numeric tokens?
+        // [ ] Some kind of motion timeout for inline helpers so that you have to 
+        //     wait a little before they show up, saves sporadic movements when code navigating
+        //      - I may want this on line trailing helpers as well? Experimnet.
+        // [ ] Figure out the weird wrapping behaviour if I dont disable line wrapping for the
+        //     buffer before drawing the relocated text. It's strage to see wrapped content
+        //     reappering on the cursor line when a helper shows up (But not hte end of the world).
+        if (is_active_view)
+        {
+            // NOTE(jack): Animation Statics:
+            static f32 cur_x_off = 0.0f;
+            static f32 next_x_off = 0.0f;
+            static float midline_helper_delay = 1.0f;
+            static float midline_helper_current_t = 0.0f;
+            
+            i64 line = get_line_number_from_pos(app, buffer, cursor_pos);
+            i64 line_end = get_line_side_pos(app, buffer, line, Side_Max);
+            i64 line_start = get_line_side_pos(app, buffer, line, Side_Min);
+            String_Const_u8 trailing_string = push_buffer_range(app, scratch, buffer, {cursor_pos, line_end});
+            
+            ARGB_Color color = finalize_color(defcolor_text_default, 0);
+            // Set Alpha channel to 0x80
+            color &= 0x00FFFFFF;
+            color |= 0x40000000;
+            
+            b32 is_last_non_whitespace = (string_skip_chop_whitespace(trailing_string).size == 0);
+            
+            i64 token_end = scan(app, boundary_alpha_numeric_underscore_utf8, buffer, Scan_Forward, cursor_pos-1);
+            if (cursor_pos == token_end)
+            {
+                // TODO(jack): Actually verify this works, when I was using the current scratch block for the iterator 
+                // arena it would crash by access violation to pointer which was seamingly in a freed block of the arena.
+                // Couple days later of using it, and I'm yet to see it crash so i _think_ we're good.
+                Arena arena = make_arena_system();
+                Rect_f32 cursor_rect = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
+                
+                Word_Complete_Iterator word_complete_iter = {};
+                word_complete_iter.app = app;
+                word_complete_iter.arena = &arena;
+                Word_Complete_Iterator *it = &word_complete_iter;
+                
+                Range_i64 range = get_word_complete_needle_range(app, buffer, cursor_pos);
+                word_complete_iter_init(buffer, range, it);
+                // NOTE(jack): If we dont iterate once, the read will return the "needle"
+                word_complete_iter_next(it);
+                
+                String_Const_u8 completion = word_complete_iter_read(it);
+                String_Const_u8 remaining_completion = string_skip(completion, range_size(range));
+                
+                if (remaining_completion.size > 0)
+                {
+                    if (is_last_non_whitespace)
+                    {
+                        // NOTE(jack): We can safely just draw after the cursor immediatley.
+                        Vec2_f32 draw_start = cursor_rect.p0;
+                        draw_string(app, face_id, remaining_completion, draw_start, color);
+                    }
+                    else
+                    {
+                        // NOTE(jack): Wait 3 seconds before showing the mid-line helper
+                        if (midline_helper_current_t < midline_helper_delay)
+                        {
+                            midline_helper_current_t += frame_info.animation_dt;
+                            animate_in_n_milliseconds(app, 0);
+                        }
+                        else
+                        {
+                            Vec2_f32 draw_start = cursor_rect.p0;
+                            Rect_f32 screen_rect = view_get_screen_rect(app, view_id);
+                            
+                            f32 remaining_x_offset = metrics.normal_advance * (cursor_pos - line_start);
+                            Buffer_Point bp;
+                            bp.line_number = line;
+                            bp.pixel_shift = V2f32(remaining_x_offset, 0.0f);
+                            
+                            Rect_f32 line_rect = Rf32(draw_start.x, draw_start.y,
+                                                      screen_rect.x1, draw_start.y + metrics.line_height);
+                            
+                            // TODO(jack): Animate here
+                            // cur += (nxt - cur) * (1.f - Pow(rate, app.dt))
+                            next_x_off = metrics.normal_advance * remaining_completion.size;
+                            cur_x_off += (next_x_off - cur_x_off) * (1.0f - powf(1e-11f, frame_info.animation_dt));
+                            
+                            if (fabsf(next_x_off - cur_x_off) > 0.0001f) {
+                                animate_in_n_milliseconds(app, 0);
+                            }
+                            
+                            Rect_f32 layout_rect = line_rect;
+                            layout_rect.x0 = draw_start.x + cur_x_off;
+                            //layout_rect.x0 += metrics.normal_advance * remaining_completion.size;
+                            
+                            // NOTE(jack): Disable  
+                            b32 old_wrap_lines = false;
+                            Managed_Scope scope = buffer_get_managed_scope(app, buffer);
+                            b32 *wrap_lines_ptr = scope_attachment(app, scope, buffer_wrap_lines, b32);
+                            if (wrap_lines_ptr != 0){
+                                old_wrap_lines = *wrap_lines_ptr;
+                                *wrap_lines_ptr = false;
+                                buffer_clear_layout_cache(app, buffer);
+                            }
+                            
+                            Text_Layout_ID remaining_layout_layout = text_layout_create(app, buffer, layout_rect, bp);
+                            
+                            JP_PaintTextLayout(app, buffer, remaining_layout_layout, scratch, token_array, cursor_pos); 
+                            
+                            draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_back));
+                            draw_rectangle_fcolor(app, line_rect, 0, fcolor_id(defcolor_highlight_cursor_line));
+                            draw_string(app, face_id, remaining_completion, draw_start, color);
+                            
+                            // draw_rectangle_outline(app, layout_rect, 4.0f, 2.0f, 0xff00FF00);
+                            
+                            // NOTE(jack) If we dont set the clip rect the whole line will get rendered
+                            // even if it is outside of the layout_rect 
+                            Rect_f32 old = draw_set_clip(app, layout_rect);
+                            draw_text_layout_default(app, remaining_layout_layout);
+                            old = draw_set_clip(app, old);
+                            
+                            if (wrap_lines_ptr != 0) {
+                                *wrap_lines_ptr = old_wrap_lines;
+                                buffer_clear_layout_cache(app, buffer);
+                            }
+                            
+                            // NOTE(jack): Redraw the cursor as the background rect coveres it.
+                            F4_Cursor_Render(app, view_id, is_active_view, buffer, text_layout_id, cursor_roundness, mark_thickness, frame_info);
+                        }
+                    }
+                }
+                else 
+                {
+                    // TODO(jack): Find a better place to reset this?
+                    // Having to do it in two places feels wrong 
+                    // (tbh i probably want to completely rewrite this to be a little less messy)
+                    cur_x_off = 0.0f;
+                    midline_helper_current_t = 0.0f;
+                }
+                
+                linalloc_clear(&arena);
+            }
+            else
+            {
+                midline_helper_current_t = 0.0f;
+                cur_x_off = 0.0f;
+            }
+        }
+    }
+    draw_set_clip(app, prev_clip);
 }
 
 //~ NOTE(rjf): Render hook
-
 function void
 F4_DrawFileBar(Application_Links *app, View_ID view_id, Buffer_ID buffer, Face_ID face_id, Rect_f32 bar)
 {
@@ -417,9 +557,7 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
     View_ID active_view = get_active_view(app, Access_Always);
     b32 is_active_view = (active_view == view_id);
     
-    f32 margin_size = (f32)def_get_config_u64(app, vars_save_string_lit("f4_margin_size"));
     Rect_f32 view_rect = view_get_screen_rect(app, view_id);
-    Rect_f32 region = rect_inner(view_rect, margin_size);
     
     Buffer_ID buffer = view_get_buffer(app, view_id, Access_Always);
     String_Const_u8 buffer_name = push_buffer_base_name(app, scratch, buffer);
@@ -440,22 +578,10 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
                 color = inactive_bg_color;
             }
         }
-        draw_rectangle(app, region, 0.f, color);
-        draw_margin(app, view_rect, region, color);
+        draw_rectangle(app, view_rect, 0.f, color);
     }
     
-    //~ NOTE(rjf): Draw margin.
-    {
-        ARGB_Color color = fcolor_resolve(fcolor_id(defcolor_margin));
-        if(def_get_config_b32(vars_save_string_lit("f4_margin_use_mode_color")) &&
-           is_active_view)
-        {
-            color = F4_GetColor(app, ColorCtx_Cursor(power_mode.enabled ? ColorFlag_PowerMode : 0,
-                                                     GlobalKeybindingMode));
-        }
-        draw_margin(app, view_rect, region, color);
-    }
-    
+    Rect_f32 region = draw_background_and_margin(app, view_id, is_active_view);
     Rect_f32 prev_clip = draw_set_clip(app, region);
     
     Face_ID face_id = get_face_id(app, buffer);
@@ -705,11 +831,12 @@ function BUFFER_HOOK_SIG(F4_BeginBuffer)
         use_lexer = true;
     }
     
+    /*
     if(string_match(buffer_name, string_u8_litexpr("*compilation*")))
     {
         wrap_lines = false;
     }
-    
+    */
     if (use_lexer)
     {
         ProfileBlock(app, "begin buffer kick off lexer");
@@ -857,6 +984,9 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
         }
         
     }
+    
+    View_ID view = get_active_view(app, Access_ReadVisible);
+    wb_4c_tick(app, view);
     
     // NOTE(rjf): Default tick stuff from the 4th dimension:
     default_tick(app, frame_info);

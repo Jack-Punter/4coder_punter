@@ -50,7 +50,7 @@ F4_RegisterLanguages(void)
         {
             // TODO(rjf): Maybe find a config-driven way to specify these? "mc" was sort of
             // introduced ad-hoc...
-            S8Lit("md"), S8Lit("mc"), S8Lit("metacode"), S8Lit("meta"), S8Lit("metadesk"),
+            S8Lit("md"), S8Lit("mc"), S8Lit("metacode"), S8Lit("meta"), S8Lit("metadesk"), S8Lit("mdesk")
         };
         for(int i = 0; i < ArrayCount(extensions); i += 1)
         {

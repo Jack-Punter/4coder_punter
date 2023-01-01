@@ -44,8 +44,6 @@ C4_RenderCursorSymbolThingy(Application_Links *app, Rect_f32 rect,
         
         draw_rectangle(app, start_top, roundness, color);
         draw_rectangle(app, start_side, roundness, color);
-        
-        // draw_rectangle(app, start_bottom, start_color);
     }
     else if(type == cursor_close_range)
 	{
@@ -92,9 +90,6 @@ DoTheCursorInterpolation(Application_Links *app, Frame_Info frame_info,
     float x_change = target.x0 - rect->x0;
     float y_change = target.y0 - rect->y0;
     
-    float cursor_size_x = (target.x1 - target.x0);
-    float cursor_size_y = (target.y1 - target.y0) * (1 + fabsf(y_change) / 60.f);
-    
     b32 should_animate_cursor = !global_battery_saver && !def_get_config_b32(vars_save_string_lit("f4_disable_cursor_trails"));
     if(should_animate_cursor)
     {
@@ -106,15 +101,15 @@ DoTheCursorInterpolation(Application_Links *app, Frame_Info frame_info,
     else
     {
         *rect = *last_rect = target;
-        cursor_size_y = target.y1 - target.y0;
     }
     
     if(should_animate_cursor)
     {
-        rect->x0 += (x_change) * frame_info.animation_dt * 30.f;
-        rect->y0 += (y_change) * frame_info.animation_dt * 30.f;
-        rect->x1 = rect->x0 + cursor_size_x;
-        rect->y1 = rect->y0 + cursor_size_y;
+        float mul = 1.0f - powf(1e-9f, frame_info.animation_dt);
+        rect->x0 += (target.x0 - rect->x0) * mul;
+        rect->y0 += (target.y0 - rect->y0) * mul;
+        rect->x1 += (target.x1 - rect->x1) * mul;
+        rect->y1 += (target.y1 - rect->y1) * mul;
     }
     
     if(target.y0 > last_rect->y0)
@@ -181,22 +176,30 @@ F4_Cursor_RenderEmacsStyle(Application_Links *app, View_ID view_id, b32 is_activ
             
 			Cursor_Type cursor_type = cursor_none;
 			Cursor_Type mark_type = cursor_none;
-			if(cursor_pos <= mark_pos)
-			{
-				cursor_type = cursor_open_range;
-				mark_type = cursor_close_range;
-			}
-			else
-			{
-				cursor_type = cursor_close_range;
-				mark_type = cursor_open_range;
-			}
-			
-			if(global_hide_region_boundary)
-			{
-				cursor_type = cursor_insert;
-				mark_type = cursor_none;
-			}
+            
+            //- NOTE(jack): insert cursor unless cursor == mark 
+            if (cursor_pos == mark_pos)
+            {
+                cursor_type = cursor_open_range;
+                mark_type = cursor_close_range;
+            } 
+            else if(cursor_pos < mark_pos)
+            {
+                cursor_type = cursor_insert;
+                mark_type = cursor_close_range;
+            }
+            else
+            {
+                cursor_type = cursor_insert;
+                mark_type = cursor_open_range;
+            }
+            //-
+            
+            if(global_hide_region_boundary)
+            {
+                cursor_type = cursor_insert;
+                mark_type = cursor_none;
+            }
             
             Rect_f32 target_cursor = text_layout_character_on_screen(app, text_layout_id, cursor_pos);
             Rect_f32 target_mark = text_layout_character_on_screen(app, text_layout_id, mark_pos);
@@ -237,36 +240,11 @@ F4_Cursor_RenderEmacsStyle(Application_Links *app, View_ID view_id, b32 is_activ
                 
                 // NOTE(rjf): Draw main cursor.
                 {
-                    C4_RenderCursorSymbolThingy(app, global_cursor_rect, roundness, 4.f, cursor_color, cursor_type);
-					C4_RenderCursorSymbolThingy(app, target_cursor, roundness, 4.f, cursor_color, cursor_type);
+                    C4_RenderCursorSymbolThingy(app, global_cursor_rect, roundness, 2.f, cursor_color, cursor_type);
+                    C4_RenderCursorSymbolThingy(app, target_cursor, roundness, 2.f, cursor_color, cursor_type);
                 }
-                
-#if 0                
-                // NOTE(rjf): GLOW IT UP
-                for(int glow = 0; glow < 20; ++glow)
-                {
-                    f32 alpha = 0.1f - (power_mode.enabled ? (glow*0.005f) : (glow*0.015f));
-                    if(alpha > 0)
-                    {
-                        Rect_f32 glow_rect = target_cursor;
-                        glow_rect.x0 -= glow;
-                        glow_rect.y0 -= glow;
-                        glow_rect.x1 += glow;
-                        glow_rect.y1 += glow;
-                        C4_RenderCursorSymbolThingy(app, glow_rect, roundness + glow*0.7f, 2.f,
-                                                    fcolor_resolve(fcolor_change_alpha(fcolor_argb(cursor_color), alpha)), cursor_type);
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-#endif
-                
             }
             
-            // paint_text_color_pos(app, text_layout_id, cursor_pos,
-            // fcolor_id(defcolor_at_cursor));
             C4_RenderCursorSymbolThingy(app, global_mark_rect, roundness, 2.f,
                                         fcolor_resolve(fcolor_change_alpha(fcolor_argb(mark_color), 0.5f)), mark_type);
 			C4_RenderCursorSymbolThingy(app, target_mark, roundness, 2.f,
@@ -368,6 +346,27 @@ F4_HighlightCursorMarkRange(Application_Links *app, View_ID view_id)
     draw_set_clip(app, clip);
 }
 
+function void
+F4_Cursor_Render(Application_Links *app, View_ID view_id, b32 is_active_view,
+                 Buffer_ID buffer, Text_Layout_ID text_layout_id,
+                 f32 roundness, f32 outline_thickness, Frame_Info frame_info)
+{
+    // NOTE(rjf): Cursor
+    switch (fcoder_mode)
+    {
+        case FCoderMode_Original:
+        {
+            F4_Cursor_RenderEmacsStyle(app, view_id, is_active_view, buffer, text_layout_id, roundness, outline_thickness, frame_info);
+        }break;
+        
+        case FCoderMode_NotepadLike:
+        {
+            F4_Cursor_RenderNotepadStyle(app, view_id, is_active_view, buffer, text_layout_id, roundness,
+                                         outline_thickness, frame_info);
+            break;
+        }
+    }
+}
 
 //~ NOTE(rjf): Mark Annotation
 
