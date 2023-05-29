@@ -188,7 +188,6 @@ keys_file =
     { "f4_go_to_definition_same_panel", "Return", "Control", "Shift" },
     
     // NOTE(rjf): Helpers
-    { "f4_write_zero_struct",  "0", "Control" },
     { "f4_toggle_enclosure_side",  "Semicolon", "Alt" },
 };
 

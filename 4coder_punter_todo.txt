@@ -1,2 +1,2 @@
 [X] Strip out Calc buffers, they're super borked and I never use them
-[ ] Strip out power mode, i never use it
+[X] Strip out power mode, i never use it

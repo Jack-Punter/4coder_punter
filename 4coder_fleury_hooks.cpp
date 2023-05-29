@@ -296,10 +296,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
         }
     }
     
-    // NOTE(rjf): Draw power mode.
-    {
-        F4_PowerMode_RenderBuffer(app, view_id, face_id, frame_info);
-    }
     
     //~ NOTE(jack): Draw @Autocompletion suggestion
     {
@@ -635,10 +631,6 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
     
     // NOTE(allen): begin buffer render
     Buffer_Point buffer_point = scroll.position;
-    if(is_active_view)
-    {
-        buffer_point.pixel_shift.y += F4_PowerMode_ScreenShake()*1.f;
-    }
     Text_Layout_ID text_layout_id = text_layout_create(app, buffer, region, buffer_point);
     
     // NOTE(allen): draw line numbers
@@ -954,7 +946,6 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
     
     F4_TickColors(app, frame_info);
     F4_Index_Tick(app);
-    F4_PowerMode_Tick(app, frame_info);
     F4_UpdateFlashes(app, frame_info);
     
     // NOTE(jack): Update the Pos Decay Time to reset to Center Pos None
@@ -975,14 +966,6 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
     
     // NOTE(rjf): Default tick stuff from the 4th dimension:
     default_tick(app, frame_info);
-}
-
-//~ NOTE(rjf): Whole Screen Render Hook
-
-function void
-F4_WholeScreenRender(Application_Links *app, Frame_Info frame_info)
-{
-    F4_PowerMode_RenderWholeScreen(app, frame_info);
 }
 
 //~ NOTE(rjf): Buffer Edit Range Hook

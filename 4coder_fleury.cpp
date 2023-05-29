@@ -411,7 +411,6 @@ typedef int socklen_t;
 #include "4coder_fleury_brace.h"
 #include "4coder_fleury_error_annotations.h"
 #include "4coder_fleury_divider_comments.h"
-#include "4coder_fleury_power_mode.h"
 #include "4coder_fleury_cursor.h"
 #include "4coder_fleury_lego.h"
 #include "4coder_fleury_pos_context_tooltips.h"
@@ -437,7 +436,6 @@ typedef int socklen_t;
 #include "4coder_fleury_brace.cpp"
 #include "4coder_fleury_error_annotations.cpp"
 #include "4coder_fleury_divider_comments.cpp"
-#include "4coder_fleury_power_mode.cpp"
 #include "4coder_fleury_cursor.cpp"
 #include "4coder_fleury_lego.cpp"
 #include "4coder_fleury_pos_context_tooltips.cpp"
@@ -470,7 +468,7 @@ void custom_layer_init(Application_Links *app)
         set_custom_hook(app, HookID_RenderCaller,            F4_Render);
         set_custom_hook(app, HookID_BeginBuffer,             F4_BeginBuffer);
         set_custom_hook(app, HookID_Layout,                  F4_Layout);
-        set_custom_hook(app, HookID_WholeScreenRenderCaller, F4_WholeScreenRender);
+        set_custom_hook(app, HookID_WholeScreenRenderCaller, default_whole_screen_render_caller);
         // set_custom_hook(app, HookID_DeltaRule,               F4_DeltaRule);
         // set_custom_hook_memory_size(app, HookID_DeltaRule, delta_ctx_size(sizeof(Vec2_f32)));
         // NOTE(jack): This is the default hook (I believe casey wrote it) feels better

@@ -10,7 +10,6 @@ function void F4_Tick(Application_Links *app, Frame_Info frame_info);
 function i32  F4_BeginBuffer(Application_Links *app, Buffer_ID buffer_id);
 function void F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id);
 function Layout_Item_List F4_Layout(Application_Links *app, Arena *arena, Buffer_ID buffer, Range_i64 range, Face_ID face, f32 width);
-function void F4_WholeScreenRender(Application_Links *app, Frame_Info frame_info);
 function BUFFER_EDIT_RANGE_SIG(F4_BufferEditRange);
 function DELTA_RULE_SIG(F4_DeltaRule)
 {

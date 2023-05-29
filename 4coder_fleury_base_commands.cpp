@@ -41,28 +41,16 @@ CUSTOM_COMMAND_SIG(f4_write_text_input)
 CUSTOM_DOC("Inserts whatever text was used to trigger this command.")
 {
     write_text_input(app);
-    F4_PowerMode_CharacterPressed();
     User_Input in = get_current_input(app);
     String_Const_u8 insert = to_writable(&in);
-    F4_PowerMode_Spawn(app, get_active_view(app, Access_ReadWriteVisible), insert.str ? insert.str[0] : 0);
 }
 
 CUSTOM_COMMAND_SIG(f4_write_text_and_auto_indent)
 CUSTOM_DOC("Inserts text and auto-indents the line on which the cursor sits if any of the text contains 'layout punctuation' such as ;:{}()[]# and new lines.")
 {
     write_text_and_auto_indent(app);
-    F4_PowerMode_CharacterPressed();
     User_Input in = get_current_input(app);
     String_Const_u8 insert = to_writable(&in);
-    F4_PowerMode_Spawn(app, get_active_view(app, Access_ReadWriteVisible), insert.str ? insert.str[0] : 0);
-}
-
-CUSTOM_COMMAND_SIG(f4_write_zero_struct)
-CUSTOM_DOC("At the cursor, insert a ' = {0};'.")
-{
-    write_string(app, string_u8_litexpr(" = {0};"));
-    F4_PowerMode_CharacterPressed();
-    F4_PowerMode_Spawn(app, get_active_view(app, Access_ReadWriteVisible), 0);
 }
 
 CUSTOM_COMMAND_SIG(f4_home)
