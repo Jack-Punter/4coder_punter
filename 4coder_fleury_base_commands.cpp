@@ -37,22 +37,6 @@ CUSTOM_DOC("Searches the current buffer backwards. If something is highlighted, 
     F4_Search(app, Scan_Backward);
 }
 
-CUSTOM_COMMAND_SIG(f4_write_text_input)
-CUSTOM_DOC("Inserts whatever text was used to trigger this command.")
-{
-    write_text_input(app);
-    User_Input in = get_current_input(app);
-    String_Const_u8 insert = to_writable(&in);
-}
-
-CUSTOM_COMMAND_SIG(f4_write_text_and_auto_indent)
-CUSTOM_DOC("Inserts text and auto-indents the line on which the cursor sits if any of the text contains 'layout punctuation' such as ;:{}()[]# and new lines.")
-{
-    write_text_and_auto_indent(app);
-    User_Input in = get_current_input(app);
-    String_Const_u8 insert = to_writable(&in);
-}
-
 CUSTOM_COMMAND_SIG(f4_home)
 CUSTOM_DOC("Goes to the beginning of the line.")
 {
@@ -1975,15 +1959,6 @@ CUSTOM_DOC("Align a block of assignments")
 }
 
 //~ NOTE(rjf): Deprecated names:
-CUSTOM_COMMAND_SIG(fleury_write_text_input)
-CUSTOM_DOC("Deprecated name. Please update to f4_write_text_input.")
-{ f4_write_text_input(app); }
-CUSTOM_COMMAND_SIG(fleury_write_text_and_auto_indent)
-CUSTOM_DOC("Deprecated name. Please update to f4_write_text_and_auto_indent.")
-{f4_write_text_and_auto_indent(app);}
-CUSTOM_COMMAND_SIG(fleury_write_zero_struct)
-CUSTOM_DOC("Deprecated name. Please update to f4_write_zero_struct.")
-{f4_write_zero_struct(app);}
 CUSTOM_COMMAND_SIG(fleury_home)
 CUSTOM_DOC("Deprecated name. Please update to f4_home.")
 {f4_home(app);}

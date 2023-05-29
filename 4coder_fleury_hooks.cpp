@@ -642,11 +642,6 @@ F4_Render(Application_Links *app, Frame_Info frame_info, View_ID view_id)
     // NOTE(allen): draw the buffer
     F4_RenderBuffer(app, view_id, face_id, buffer, text_layout_id, region, frame_info);
     
-    // NOTE(rjf): Render command server
-#if OS_WINDOWS
-    CS_render_caller(app, frame_info, view_id);
-#endif
-    
     text_layout_free(app, text_layout_id);
     draw_set_clip(app, prev_clip);
 }

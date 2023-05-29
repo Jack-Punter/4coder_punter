@@ -139,7 +139,7 @@ F4_SetAbsolutelyNecessaryBindings(Mapping *mapping)
     
     SelectMap(file_map_id);
     ParentMap(global_map_id);
-    BindTextInput(fleury_write_text_input);
+    BindTextInput(write_text_input);
     BindMouse(click_set_cursor_and_mark, MouseCode_Left);
     BindMouseRelease(click_set_cursor, MouseCode_Left);
     BindCore(click_set_cursor_and_mark, CoreCode_ClickActivateView);
@@ -147,7 +147,7 @@ F4_SetAbsolutelyNecessaryBindings(Mapping *mapping)
     
     SelectMap(code_map_id);
     ParentMap(file_map_id);
-    BindTextInput(fleury_write_text_and_auto_indent);
+    BindTextInput(write_text_and_auto_indent);
     BindMouse(f4_lego_click_store_token_1, MouseCode_Right);
     BindMouse(f4_lego_click_store_token_2, MouseCode_Middle);
     
@@ -292,14 +292,13 @@ F4_SetDefaultBindings(Mapping *mapping)
     
     // NOTE(rjf): Custom bindings.
     {
-        Bind(fleury_write_zero_struct,  KeyCode_0, KeyCode_Control);
         Bind(move_right_token_boundary, KeyCode_Right, KeyCode_Shift, KeyCode_Control);
         Bind(move_left_token_boundary, KeyCode_Left, KeyCode_Shift, KeyCode_Control);
     }
     
     SelectMap(code_map_id);
     ParentMap(file_map_id);
-    BindTextInput(fleury_write_text_and_auto_indent);
+    BindTextInput(write_text_and_auto_indent);
     Bind(move_left_alpha_numeric_boundary,           KeyCode_Left, KeyCode_Control);
     Bind(move_right_alpha_numeric_boundary,          KeyCode_Right, KeyCode_Control);
     Bind(move_left_alpha_numeric_or_camel_boundary,  KeyCode_Left, KeyCode_Alt);

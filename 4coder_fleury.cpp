@@ -187,22 +187,6 @@
 //   "fleury_color_token_minor_highlight". Turn the highlight of other occurances
 //   off with "f4_disable_cursor_token_occurance" in your config file.
 
-//- @f4_calc_intro Built-In Calculator/Plotting
-//
-// This custom layer includes a tiny little calculator language, which has
-// plotting capabilities. It has a few features that comprise it all:
-//
-// - Calculator Comments: Any comments starting with a 'c', e.g. //c or /*c,
-//   will be interpreted as calculator code, including inline plots. This
-//   can be useful to do quick calculations, see a math function represented
-//   visually, or plot data. You can check out examples/demos in the
-//   4coder_fleury_plots_demo.cpp file. Turn it off with "f4_disable_calc_comments"
-//   in your config file.
-//
-// - *calc* Buffer: On startup, a *calc* buffer is opened that you can switch
-//   to. The entire buffer is interpreted as calculator code, and it will
-//   do all the same things that calc comments do.
-
 //- @f4_pos_context_intro Language Position-Context Tooltips
 //
 // This feature shows tooltips relating to the current cursor position, as it
@@ -228,12 +212,6 @@
 //   use the current selection as the search query.
 //
 // - f4_reverse_search: Same thing as f4_search, just goes backwards.
-//
-// - f4_write_text_input: Use this instead of the default 4coder write_text_input
-//   if you want Power Mode features.
-//
-// - f4_write_text_and_auto_indent: Same thing as above. Use over the default 4coder
-//   equivalent if you want Power Mode features.
 //
 // - f4_write_zero_struct: 4coder provides a helper like this already, which writes
 //   a C++-style '= {};' initializer, but this doesn't work for C (which uses '= {0}'),
@@ -366,28 +344,10 @@
 // [ ] Fix clipboard stuff
 // [ ] CPM counter shenanigans
 
-//~ TODO PLOTS
-// [ ] Un-Bust Histograms
-// [ ] Fix plot clip rect bugs when the plot is not 100% in the visible range
-//     (caused by 4coder laying out characters off the screen as being at 0, 0)
-// [ ] Labels for histogram bins
-// [ ] Plots and Calc are so coupled and I hate it, please rewrite or something
-
 //~ TODO META
 // [X] Project-wide todo list (by searching for TODO and DONE comments, lister for toggling)
 // [ ] Project switcher
 // [ ] Plan + do modal input scheme... Identifier-mode, text-mode, semantics mode, search mode...?
-
-//~ NOTE(rjf): For DION team docs server stuff.
-// {
-#if OS_WINDOWS
-#include <WinSock2.h>
-#include <Ws2tcpip.h>
-#include <windows.h>
-typedef int socklen_t;
-#pragma comment(lib, "Ws2_32.lib")
-#endif
-// }
 
 //~ NOTE(rjf): Macros and pragmase stuff that have to be put here for various
 // reasons
@@ -397,9 +357,6 @@ typedef int socklen_t;
 #include "4coder_default_include.cpp"
 #pragma warning(disable : 4706)
 #pragma warning(disable : 4456)
-#define COMMAND_SERVER_PORT 4041
-#define COMMAND_SERVER_UPDATE_PERIOD_MS 200
-#define COMMAND_SERVER_AUTO_LAUNCH_IF_FILE_PRESENT "project_namespaces.txt"
 
 //~ NOTE(rjf): @f4_headers
 #include "4coder_fleury_ubiquitous.h"
@@ -418,9 +375,6 @@ typedef int socklen_t;
 #include "4coder_fleury_recent_files.h"
 #include "4coder_fleury_bindings.h"
 #include "4coder_fleury_base_commands.h"
-#if OS_WINDOWS
-#include "4coder_fleury_command_server.h"
-#endif
 #include "4coder_fleury_hooks.h"
 #include "4coder_fleury_base_commands.h"
 
@@ -443,9 +397,6 @@ typedef int socklen_t;
 #include "4coder_fleury_recent_files.cpp"
 #include "4coder_fleury_bindings.cpp"
 #include "4coder_fleury_base_commands.cpp"
-#if OS_WINDOWS
-#include "4coder_fleury_command_server.cpp"
-#endif
 #include "4coder_fleury_casey.cpp"
 #include "4coder_fleury_hooks.cpp"
 
