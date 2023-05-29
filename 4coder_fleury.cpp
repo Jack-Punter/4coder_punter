@@ -413,8 +413,6 @@ typedef int socklen_t;
 #include "4coder_fleury_divider_comments.h"
 #include "4coder_fleury_power_mode.h"
 #include "4coder_fleury_cursor.h"
-#include "4coder_fleury_plot.h"
-#include "4coder_fleury_calc.h"
 #include "4coder_fleury_lego.h"
 #include "4coder_fleury_pos_context_tooltips.h"
 #include "4coder_fleury_code_peek.h"
@@ -441,8 +439,6 @@ typedef int socklen_t;
 #include "4coder_fleury_divider_comments.cpp"
 #include "4coder_fleury_power_mode.cpp"
 #include "4coder_fleury_cursor.cpp"
-#include "4coder_fleury_plot.cpp"
-#include "4coder_fleury_calc.cpp"
 #include "4coder_fleury_lego.cpp"
 #include "4coder_fleury_pos_context_tooltips.cpp"
 #include "4coder_fleury_code_peek.cpp"
@@ -455,9 +451,6 @@ typedef int socklen_t;
 #include "4coder_fleury_casey.cpp"
 #include "4coder_fleury_hooks.cpp"
 
-//~ NOTE(rjf): Plots Demo File
-#include "4coder_fleury_plots_demo.cpp"
-
 //~ NOTE(rjf): 4coder Stuff
 #include "generated/managed_id_metadata.cpp"
 
@@ -465,51 +458,51 @@ typedef int socklen_t;
 
 void custom_layer_init(Application_Links *app)
 {
-  default_framework_init(app);
-  global_frame_arena = make_arena(get_base_allocator_system());
-  permanent_arena = make_arena(get_base_allocator_system());
-  
-  // NOTE(rjf): Set up hooks.
-  {
-    set_all_default_hooks(app);
-    //t $          ($  , $                             , $                     );
-    set_custom_hook(app, HookID_Tick,                    F4_Tick);
-    set_custom_hook(app, HookID_RenderCaller,            F4_Render);
-    set_custom_hook(app, HookID_BeginBuffer,             F4_BeginBuffer);
-    set_custom_hook(app, HookID_Layout,                  F4_Layout);
-    set_custom_hook(app, HookID_WholeScreenRenderCaller, F4_WholeScreenRender);
-    // set_custom_hook(app, HookID_DeltaRule,               F4_DeltaRule);
-    // set_custom_hook_memory_size(app, HookID_DeltaRule, delta_ctx_size(sizeof(Vec2_f32)));
-    // NOTE(jack): This is the default hook (I believe casey wrote it) feels better
-    // not sure why it isnt used
-    set_custom_hook(app, HookID_DeltaRule,               fixed_time_cubic_delta);
-    set_custom_hook_memory_size(app, HookID_DeltaRule,
-                                delta_ctx_size(fixed_time_cubic_delta_memory_size));
-    set_custom_hook(app, HookID_BufferEditRange,         F4_BufferEditRange);
-  }
-  
-  // NOTE(rjf): Set up mapping.
-  {
-    Thread_Context *tctx = get_thread_context(app);
-    mapping_init(tctx, &framework_mapping);
-    String_Const_u8 bindings_file = string_u8_litexpr("bindings.4coder");
-    F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
-    if(!dynamic_binding_load_from_file(app, &framework_mapping, bindings_file))
+    default_framework_init(app);
+    global_frame_arena = make_arena(get_base_allocator_system());
+    permanent_arena = make_arena(get_base_allocator_system());
+    
+    // NOTE(rjf): Set up hooks.
     {
-      F4_SetDefaultBindings(&framework_mapping);
+        set_all_default_hooks(app);
+        //t $          ($  , $                             , $                     );
+        set_custom_hook(app, HookID_Tick,                    F4_Tick);
+        set_custom_hook(app, HookID_RenderCaller,            F4_Render);
+        set_custom_hook(app, HookID_BeginBuffer,             F4_BeginBuffer);
+        set_custom_hook(app, HookID_Layout,                  F4_Layout);
+        set_custom_hook(app, HookID_WholeScreenRenderCaller, F4_WholeScreenRender);
+        // set_custom_hook(app, HookID_DeltaRule,               F4_DeltaRule);
+        // set_custom_hook_memory_size(app, HookID_DeltaRule, delta_ctx_size(sizeof(Vec2_f32)));
+        // NOTE(jack): This is the default hook (I believe casey wrote it) feels better
+        // not sure why it isnt used
+        set_custom_hook(app, HookID_DeltaRule,               fixed_time_cubic_delta);
+        set_custom_hook_memory_size(app, HookID_DeltaRule,
+                                    delta_ctx_size(fixed_time_cubic_delta_memory_size));
+        set_custom_hook(app, HookID_BufferEditRange,         F4_BufferEditRange);
     }
-    F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
-  }
-  
-  // NOTE(rjf): Set up custom code index.
-  {
-    F4_Index_Initialize();
-  }
-  
-  // NOTE(rjf): Register languages.
-  {
-    F4_RegisterLanguages();
-  }
+    
+    // NOTE(rjf): Set up mapping.
+    {
+        Thread_Context *tctx = get_thread_context(app);
+        mapping_init(tctx, &framework_mapping);
+        String_Const_u8 bindings_file = string_u8_litexpr("bindings.4coder");
+        F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
+        if(!dynamic_binding_load_from_file(app, &framework_mapping, bindings_file))
+        {
+            F4_SetDefaultBindings(&framework_mapping);
+        }
+        F4_SetAbsolutelyNecessaryBindings(&framework_mapping);
+    }
+    
+    // NOTE(rjf): Set up custom code index.
+    {
+        F4_Index_Initialize();
+    }
+    
+    // NOTE(rjf): Register languages.
+    {
+        F4_RegisterLanguages();
+    }
 }
 
 //~ NOTE(rjf): @f4_startup Whenever 4coder's core is ready for the custom layer to start up,
@@ -521,213 +514,205 @@ void custom_layer_init(Application_Links *app)
 function b32
 IsFileReadable(String_Const_u8 path)
 {
-  b32 result = 0;
-  FILE *file = fopen((char *)path.str, "r");
-  if(file)
-  {
-    result = 1;
-    fclose(file);
-  }
-  return result;
+    b32 result = 0;
+    FILE *file = fopen((char *)path.str, "r");
+    if(file)
+    {
+        result = 1;
+        fclose(file);
+    }
+    return result;
 }
 
 CUSTOM_COMMAND_SIG(fleury_startup)
 CUSTOM_DOC("Fleury startup event")
 {
-  ProfileScope(app, "default startup");
-  
-  User_Input input = get_current_input(app);
-  if(!match_core_code(&input, CoreCode_Startup))
-  {
-    return;
-  }
-  
-  //~ NOTE(rjf): Default 4coder initialization.
-  String_Const_u8_Array file_names = input.event.core.file_names;
-  load_themes_default_folder(app);
-  default_4coder_initialize(app, file_names);
-  
-  //~ NOTE(rjf): Open special buffers.
-  {
-    // NOTE(rjf): Open compilation buffer.
+    ProfileScope(app, "default startup");
+    
+    User_Input input = get_current_input(app);
+    if(!match_core_code(&input, CoreCode_Startup))
     {
-      Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*compilation*"),
-                                       BufferCreate_NeverAttachToFile |
-                                       BufferCreate_AlwaysNew);
-      buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
-      buffer_set_setting(app, buffer, BufferSetting_ReadOnly, true);
+        return;
     }
     
-    // NOTE(rjf): Open lego buffer.
+    //~ NOTE(rjf): Default 4coder initialization.
+    String_Const_u8_Array file_names = input.event.core.file_names;
+    load_themes_default_folder(app);
+    default_4coder_initialize(app, file_names);
+    
+    //~ NOTE(rjf): Open special buffers.
     {
-      Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*lego*"),
-                                       BufferCreate_NeverAttachToFile |
-                                       BufferCreate_AlwaysNew);
-      buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
-      buffer_set_setting(app, buffer, BufferSetting_ReadOnly, true);
+        // NOTE(rjf): Open compilation buffer.
+        {
+            Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*compilation*"),
+                                             BufferCreate_NeverAttachToFile |
+                                             BufferCreate_AlwaysNew);
+            buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+            buffer_set_setting(app, buffer, BufferSetting_ReadOnly, true);
+        }
+        
+        // NOTE(rjf): Open lego buffer.
+        {
+            Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*lego*"),
+                                             BufferCreate_NeverAttachToFile |
+                                             BufferCreate_AlwaysNew);
+            buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+            buffer_set_setting(app, buffer, BufferSetting_ReadOnly, true);
+        }
+        
+        // NOTE(rjf): Open peek buffer.
+        {
+            Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*peek*"),
+                                             BufferCreate_NeverAttachToFile |
+                                             BufferCreate_AlwaysNew);
+            buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+        }
+        
+        // NOTE(rjf): Open LOC buffer.
+        {
+            Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*loc*"),
+                                             BufferCreate_NeverAttachToFile |
+                                             BufferCreate_AlwaysNew);
+            buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+        }
     }
     
-    // NOTE(rjf): Open calc buffer.
+    //~ NOTE(rjf): Initialize panels
     {
-      Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*calc*"),
-                                       BufferCreate_NeverAttachToFile |
-                                       BufferCreate_AlwaysNew);
-      buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+        Buffer_Identifier comp = buffer_identifier(string_u8_litexpr("*compilation*"));
+        Buffer_Identifier left  = buffer_identifier(string_u8_litexpr("*calc*"));
+        Buffer_Identifier right = buffer_identifier(string_u8_litexpr("*messages*"));
+        Buffer_ID comp_id = buffer_identifier_to_id(app, comp);
+        Buffer_ID left_id = buffer_identifier_to_id(app, left);
+        Buffer_ID right_id = buffer_identifier_to_id(app, right);
+        
+        // NOTE(rjf): Left Panel
+        View_ID view = get_active_view(app, Access_Always);
+        new_view_settings(app, view);
+        view_set_buffer(app, view, left_id, 0);
+        
+        // NOTE(rjf): Bottom panel
+        View_ID compilation_view = 0;
+        {
+            compilation_view = open_view(app, view, ViewSplit_Bottom);
+            new_view_settings(app, compilation_view);
+            Buffer_ID buffer = view_get_buffer(app, compilation_view, Access_Always);
+            Face_ID face_id = get_face_id(app, buffer);
+            Face_Metrics metrics = get_face_metrics(app, face_id);
+            view_set_split_pixel_size(app, compilation_view, (i32)(metrics.line_height*6.f));
+            view_set_passive(app, compilation_view, true);
+            global_compilation_view = compilation_view;
+            view_set_buffer(app, compilation_view, comp_id, 0);
+        }
+        
+        view_set_active(app, view);
+        
+        // NOTE(rjf): Right Panel
+        open_panel_vsplit(app);
+        
+        View_ID right_view = get_active_view(app, Access_Always);
+        view_set_buffer(app, right_view, right_id, 0);
+        
+        // NOTE(rjf): Restore Active to Left
+        view_set_active(app, view);
     }
     
-    // NOTE(rjf): Open peek buffer.
+    //~ NOTE(rjf): Auto-Load Project.
     {
-      Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*peek*"),
-                                       BufferCreate_NeverAttachToFile |
-                                       BufferCreate_AlwaysNew);
-      buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
+        b32 auto_load = def_get_config_b32(vars_save_string_lit("automatically_load_project"));
+        if (auto_load)
+        {
+            load_project(app);
+        }
     }
     
-    // NOTE(rjf): Open LOC buffer.
+    //~ NOTE(rjf): Set misc options.
     {
-      Buffer_ID buffer = create_buffer(app, string_u8_litexpr("*loc*"),
-                                       BufferCreate_NeverAttachToFile |
-                                       BufferCreate_AlwaysNew);
-      buffer_set_setting(app, buffer, BufferSetting_Unimportant, true);
-    }
-  }
-  
-  //~ NOTE(rjf): Initialize panels
-  {
-    Buffer_Identifier comp = buffer_identifier(string_u8_litexpr("*compilation*"));
-    Buffer_Identifier left  = buffer_identifier(string_u8_litexpr("*calc*"));
-    Buffer_Identifier right = buffer_identifier(string_u8_litexpr("*messages*"));
-    Buffer_ID comp_id = buffer_identifier_to_id(app, comp);
-    Buffer_ID left_id = buffer_identifier_to_id(app, left);
-    Buffer_ID right_id = buffer_identifier_to_id(app, right);
-    
-    // NOTE(rjf): Left Panel
-    View_ID view = get_active_view(app, Access_Always);
-    new_view_settings(app, view);
-    view_set_buffer(app, view, left_id, 0);
-    
-    // NOTE(rjf): Bottom panel
-    View_ID compilation_view = 0;
-    {
-      compilation_view = open_view(app, view, ViewSplit_Bottom);
-      new_view_settings(app, compilation_view);
-      Buffer_ID buffer = view_get_buffer(app, compilation_view, Access_Always);
-      Face_ID face_id = get_face_id(app, buffer);
-      Face_Metrics metrics = get_face_metrics(app, face_id);
-      view_set_split_pixel_size(app, compilation_view, (i32)(metrics.line_height*6.f));
-      view_set_passive(app, compilation_view, true);
-      global_compilation_view = compilation_view;
-      view_set_buffer(app, compilation_view, comp_id, 0);
+        global_battery_saver = def_get_config_b32(vars_save_string_lit("f4_battery_saver"));
     }
     
-    view_set_active(app, view);
-    
-    // NOTE(rjf): Right Panel
-    open_panel_vsplit(app);
-    
-    View_ID right_view = get_active_view(app, Access_Always);
-    view_set_buffer(app, right_view, right_id, 0);
-    
-    // NOTE(rjf): Restore Active to Left
-    view_set_active(app, view);
-  }
-  
-  //~ NOTE(rjf): Auto-Load Project.
-  {
-    b32 auto_load = def_get_config_b32(vars_save_string_lit("automatically_load_project"));
-    if (auto_load)
+    //~ NOTE(rjf): Initialize audio.
     {
-      load_project(app);
-    }
-  }
-  
-  //~ NOTE(rjf): Set misc options.
-  {
-    global_battery_saver = def_get_config_b32(vars_save_string_lit("f4_battery_saver"));
-  }
-  
-  //~ NOTE(rjf): Initialize audio.
-  {
-    def_audio_init();
-  }
-  
-  //~ NOTE(rjf): Initialize stylish fonts.
-  {
-    Scratch_Block scratch(app);
-    String_Const_u8 bin_path = system_get_path(scratch, SystemPath_Binary);
-    
-    // NOTE(rjf): Fallback font.
-    Face_ID face_that_should_totally_be_there = get_face_id(app, 0);
-    
-    // NOTE(rjf): Title font.
-    {
-      Face_Description desc = {0};
-      {
-        desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/RobotoCondensed-Regular.ttf", string_expand(bin_path));
-        desc.parameters.pt_size = 18;
-        desc.parameters.bold = 0;
-        desc.parameters.italic = 0;
-        desc.parameters.hinting = 0;
-      }
-      
-      if(IsFileReadable(desc.font.file_name))
-      {
-        global_styled_title_face = try_create_new_face(app, &desc);
-      }
-      else
-      {
-        global_styled_title_face = face_that_should_totally_be_there;
-      }
+        def_audio_init();
     }
     
-    // NOTE(rjf): Label font.
+    //~ NOTE(rjf): Initialize stylish fonts.
     {
-      Face_Description desc = {0};
-      {
-        desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/RobotoCondensed-Regular.ttf", string_expand(bin_path));
-        desc.parameters.pt_size = 10;
-        desc.parameters.bold = 1;
-        desc.parameters.italic = 1;
-        desc.parameters.hinting = 0;
-      }
-      
-      if(IsFileReadable(desc.font.file_name))
-      {
-        global_styled_label_face = try_create_new_face(app, &desc);
-      }
-      else
-      {
-        global_styled_label_face = face_that_should_totally_be_there;
-      }
+        Scratch_Block scratch(app);
+        String_Const_u8 bin_path = system_get_path(scratch, SystemPath_Binary);
+        
+        // NOTE(rjf): Fallback font.
+        Face_ID face_that_should_totally_be_there = get_face_id(app, 0);
+        
+        // NOTE(rjf): Title font.
+        {
+            Face_Description desc = {0};
+            {
+                desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/RobotoCondensed-Regular.ttf", string_expand(bin_path));
+                desc.parameters.pt_size = 18;
+                desc.parameters.bold = 0;
+                desc.parameters.italic = 0;
+                desc.parameters.hinting = 0;
+            }
+            
+            if(IsFileReadable(desc.font.file_name))
+            {
+                global_styled_title_face = try_create_new_face(app, &desc);
+            }
+            else
+            {
+                global_styled_title_face = face_that_should_totally_be_there;
+            }
+        }
+        
+        // NOTE(rjf): Label font.
+        {
+            Face_Description desc = {0};
+            {
+                desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/RobotoCondensed-Regular.ttf", string_expand(bin_path));
+                desc.parameters.pt_size = 10;
+                desc.parameters.bold = 1;
+                desc.parameters.italic = 1;
+                desc.parameters.hinting = 0;
+            }
+            
+            if(IsFileReadable(desc.font.file_name))
+            {
+                global_styled_label_face = try_create_new_face(app, &desc);
+            }
+            else
+            {
+                global_styled_label_face = face_that_should_totally_be_there;
+            }
+        }
+        
+        // NOTE(rjf): Small code font.
+        {
+            Face_Description normal_code_desc = get_face_description(app, get_face_id(app, 0));
+            
+            Face_Description desc = {0};
+            {
+                desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/JetBrainsMono-Regular.ttf", string_expand(bin_path));
+                desc.parameters.pt_size = normal_code_desc.parameters.pt_size - 4;
+                desc.parameters.bold = 1;
+                desc.parameters.italic = 1;
+                desc.parameters.hinting = 0;
+            }
+            
+            if(IsFileReadable(desc.font.file_name))
+            {
+                global_small_code_face = try_create_new_face(app, &desc);
+            }
+            else
+            {
+                global_small_code_face = face_that_should_totally_be_there;
+            }
+        }
     }
     
-    // NOTE(rjf): Small code font.
+    //~ NOTE(rjf): Prep virtual whitespace.
     {
-      Face_Description normal_code_desc = get_face_description(app, get_face_id(app, 0));
-      
-      Face_Description desc = {0};
-      {
-        desc.font.file_name =  push_u8_stringf(scratch, "%.*sfonts/JetBrainsMono-Regular.ttf", string_expand(bin_path));
-        desc.parameters.pt_size = normal_code_desc.parameters.pt_size - 4;
-        desc.parameters.bold = 1;
-        desc.parameters.italic = 1;
-        desc.parameters.hinting = 0;
-      }
-      
-      if(IsFileReadable(desc.font.file_name))
-      {
-        global_small_code_face = try_create_new_face(app, &desc);
-      }
-      else
-      {
-        global_small_code_face = face_that_should_totally_be_there;
-      }
+        def_enable_virtual_whitespace = def_get_config_b32(vars_save_string_lit("enable_virtual_whitespace"));
+        clear_all_layouts(app);
     }
-  }
-  
-  //~ NOTE(rjf): Prep virtual whitespace.
-  {
-    def_enable_virtual_whitespace = def_get_config_b32(vars_save_string_lit("enable_virtual_whitespace"));
-    clear_all_layouts(app);
-  }
 }

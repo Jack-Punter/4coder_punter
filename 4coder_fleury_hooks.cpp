@@ -228,20 +228,6 @@ F4_RenderBuffer(Application_Links *app, View_ID view_id, Face_ID face_id,
     // NOTE(allen): put the actual text on the actual screen
     draw_text_layout_default(app, text_layout_id);
     
-    // NOTE(rjf): Interpret buffer as calc code, if it's the calc buffer.
-    {
-        Buffer_ID calc_buffer_id = get_buffer_by_name(app, string_u8_litexpr("*calc*"), AccessFlag_Read);
-        if(calc_buffer_id == buffer)
-        {
-            F4_CLC_RenderBuffer(app, buffer, view_id, text_layout_id, frame_info);
-        }
-    }
-    
-    // NOTE(rjf): Draw calc comments.
-    {
-        F4_CLC_RenderComments(app, buffer, view_id, text_layout_id, frame_info);
-    }
-    
     // NOTE(rjf): Draw tooltips and stuff.
     if(active_view == view_id)
     {
@@ -968,7 +954,6 @@ F4_Tick(Application_Links *app, Frame_Info frame_info)
     
     F4_TickColors(app, frame_info);
     F4_Index_Tick(app);
-    F4_CLC_Tick(frame_info);
     F4_PowerMode_Tick(app, frame_info);
     F4_UpdateFlashes(app, frame_info);
     
