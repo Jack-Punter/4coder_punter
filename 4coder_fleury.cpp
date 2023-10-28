@@ -552,6 +552,8 @@ CUSTOM_DOC("Fleury startup event")
             view_set_passive(app, compilation_view, true);
             global_compilation_view = compilation_view;
             view_set_buffer(app, compilation_view, comp_id, 0);
+            view_set_active(app, global_compilation_view);
+            toggle_filebar(app);
         }
         
         view_set_active(app, view);
